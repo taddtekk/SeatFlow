@@ -4,7 +4,9 @@
 
 html,
 body {
+  height: 100%;
   min-height: 100%;
+  overflow: hidden;
 }
 
 body {
@@ -32,6 +34,7 @@ button {
   display: grid;
   grid-template-rows: 58px minmax(0, 1fr);
   height: 100vh;
+  height: 100dvh;
   min-width: 0;
   overflow: hidden;
 }
@@ -129,6 +132,8 @@ button {
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr) 390px;
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .tool-sidebar,
@@ -136,7 +141,8 @@ button {
   background: linear-gradient(180deg, rgba(16, 28, 43, 0.98), rgba(11, 23, 38, 0.98));
   border-color: var(--sf-panel-border);
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .tool-sidebar {
@@ -155,8 +161,10 @@ button {
 .workspace {
   background: #081321;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 44px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
   position: relative;
 }
 
@@ -369,6 +377,8 @@ button {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
   padding: 12px 14px 0;
 }
 
@@ -415,6 +425,19 @@ button {
   padding: 0 10px;
 }
 
+.zoom-reset-button {
+  background: rgba(16, 28, 43, 0.85);
+  border: 1px solid var(--sf-panel-border);
+  border-radius: var(--sf-radius-sm);
+  color: var(--sf-text-soft);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 34px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
 .zoom-pill button {
   align-items: center;
   background: transparent;
@@ -427,10 +450,43 @@ button {
   width: 22px;
 }
 
-.canvas-frame {
+.canvas-viewport {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.54), rgba(8, 19, 33, 0.82)),
+    #081321;
+  border-top: 1px solid rgba(38, 56, 77, 0.55);
+  height: 100%;
   min-height: 0;
-  padding: 28px 0 0 34px;
+  min-width: 0;
+  overflow: auto;
+  padding: 24px;
+  scrollbar-gutter: stable both-edges;
+  width: 100%;
+}
+
+.canvas-scroll-content {
+  align-items: safe center;
+  display: grid;
+  justify-items: safe center;
+  min-height: 100%;
+  min-width: 100%;
+}
+
+.canvas-stage {
+  flex: 0 0 auto;
   position: relative;
+}
+
+.ruler-corner {
+  background: rgba(16, 28, 43, 0.96);
+  border: 1px solid var(--sf-panel-border);
+  border-bottom: 0;
+  border-right: 0;
+  height: 30px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 30px;
 }
 
 .seatflow-canvas {
@@ -438,15 +494,15 @@ button {
   border: 1px solid var(--sf-canvas-grid-strong);
   border-radius: var(--sf-radius-sm);
   display: block;
-  height: calc(100% - 28px);
-  max-height: calc(100vh - 158px);
-  width: calc(100% - 34px);
+  position: absolute;
 }
 
 .ruler {
+  background: rgba(16, 28, 43, 0.96);
   color: var(--sf-text-soft);
   font-size: 12px;
   position: absolute;
+  z-index: 1;
 }
 
 .ruler span {
@@ -455,10 +511,9 @@ button {
 }
 
 .ruler-horizontal {
-  height: 24px;
-  left: 34px;
-  right: 0;
-  top: 0;
+  border: 1px solid var(--sf-panel-border);
+  border-bottom: 0;
+  border-left: 0;
 }
 
 .ruler-horizontal::after,
@@ -471,10 +526,9 @@ button {
 }
 
 .ruler-vertical {
-  bottom: 0;
-  left: 0;
-  top: 28px;
-  width: 30px;
+  border: 1px solid var(--sf-panel-border);
+  border-right: 0;
+  border-top: 0;
 }
 
 .ruler-vertical span {
@@ -949,8 +1003,10 @@ button {
   color: var(--sf-text-soft);
   display: flex;
   gap: 0;
+  min-height: 44px;
   min-width: 0;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
   padding: 0 14px;
 }
 
@@ -1012,9 +1068,10 @@ button {
 
 @media (max-width: 840px) {
   .seatflow-app {
-    height: auto;
+    height: 100vh;
+    height: 100dvh;
     min-height: 100vh;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .topbar,
@@ -1038,11 +1095,11 @@ button {
     max-height: none;
   }
 
-  .workspace {
-    min-height: 720px;
+  .editor-shell {
+    overflow: auto;
   }
 
-  .seatflow-canvas {
-    max-height: 620px;
+  .workspace {
+    min-height: 720px;
   }
 }

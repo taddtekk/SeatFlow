@@ -10,6 +10,10 @@ Die Aktionen „Bestuhlung neu berechnen“, „Tischlayout erzeugen“, „Alle
 
 Der Editor unterstützt Undo/Redo über die Topbar sowie `Ctrl/Cmd+Z` und `Ctrl/Cmd+Y`. Objektbewegungen rasten standardmäßig auf ein 250-mm-Raster ein; mit gedrückter Shift-Taste kann ohne Raster verschoben werden. Nach Planänderungen läuft die technische Validierung automatisch mit kurzem Debounce im Hintergrund. Tischgruppen erhalten einen gemeinsamen Auswahlrahmen und können als Gruppe bewegt oder skaliert werden.
 
+## M3.1 Workspace-Viewport
+
+Die Planfläche läuft in einem eigenen scrollbaren Editor-Viewport. Das SVG wird nicht mehr per CSS `transform: scale(...)` vergrößert, sondern erhält echte Pixelmaße aus `viewBox`, zentralem `basePxPerMm` und aktuellem Zoom. Dadurch bleiben linke Werkzeugleiste, rechte Eigenschaftenleiste und Statusbar im Layoutfluss, während nur der Canvas-Viewport scrollt. Der Fit-Button berechnet den Zoom aus der verfügbaren Viewportgröße.
+
 SeatFlow ist ein webbasiertes Planungstool für Veranstaltungsplanung. Es soll Bestuhlungspläne, Tischpläne und Rettungswegepläne maßstäblich in Millimetern erstellen, Sperrflächen und Fluchtwege berücksichtigen und später regelbasiert prüfen.
 
 Wichtig: SeatFlow ersetzt keine behördliche oder brandschutztechnische Freigabe. Validierungen sind technische Hinweise nach dem gewählten Regelprofil.
@@ -89,6 +93,7 @@ docs                  Entwicklerdokumentation
 - Raum, Bühne, FOH, Sperrflächen, Fluchtwege, Ausgänge, Stühle, Tische, Tischsitze und Tischgruppen aus Plan-Daten gerendert
 - Auswahl, Drag & Drop, rechteckiges Resize, Löschen und Eigenschaftenbearbeitung
 - Layer-Toggles für Stühle, Tische, Fluchtwege, Sperrflächen, Raster, Maße und Validierung
+- stabiler scrollbarer Canvas-Viewport mit Zoom-Stufen, 100-%-Reset und Fit-to-screen
 - Bestuhlungsbereiche mit Zielplätzen, Stuhlmaßen, Reihenabstand, Mittelgang und Querwegen
 - Tischbereiche mit runden Tischen, Rechtecktischen, Bankett und parlamentarischem Grundlayout
 - Auto-Bestuhlung per API mit Raumgrenzen, Sperrflächen, Fluchtwegen, FOH, Bühne, Tischen und Tischbereichen als Blocker

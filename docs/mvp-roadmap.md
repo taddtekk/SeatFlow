@@ -10,10 +10,12 @@ M2-Grundlagen sind jetzt vorhanden: `generateSeating(plan, options)` verwendet d
 
 M3 ergänzt Bestuhlungsbereiche, Tischbereiche, interne generierte Gänge, bereichsbezogene Generator-Einstellungen, `POST /api/generate-layouts`, bessere Validierung für Blöcke/Tischsitze/Anbindungen und einen zweitseitigen PDF-Export mit Validierungsbericht.
 
+M3.1 stabilisiert den Workspace-Viewport: Die Canvas ist jetzt ein eigener Scrollbereich, Zoom wird über echte Stage-/SVG-Pixelgrößen aus der Millimeter-`viewBox` berechnet und Fit-to-screen nutzt die verfügbare Viewportgröße. Dadurch bleiben Sidebars und Statusbar stabil sichtbar, auch wenn bei 120 % oder höher gescrollt werden muss.
+
 - M0 Projektfundament: Monorepo, Plesk-Start, Packages, Demo-Plan.
 - M1 Interaktiver Editor: Objekte zeichnen, auswählen, verschieben und bearbeiten.
 - M2 Auto-Bestuhlung: bessere Blocklogik, Ganglogik und Zielkapazitäten. Grundlogik umgesetzt, Optimierung offen.
-- M3 Layout-Engine und Planungsbereiche: Bestuhlungsbereiche, Tischbereiche, interne Gänge und Generator-Panel umgesetzt; Optimierung offen.
+- M3 Layout-Engine und Planungsbereiche: Bestuhlungsbereiche, Tischbereiche, interne Gänge und Generator-Panel umgesetzt; Workspace-Viewport in M3.1 stabilisiert; Optimierung offen.
 - M4 Validierung und Regelprofile: technische Prüfung erweitert, profilierte Regelverwaltung offen.
 - M5 PDF-Export: Planübersicht und Validierungsbericht umgesetzt, Maßstabs-/Layoutvarianten offen.
 - M6 MariaDB-Anbindung: Repository-Implementierungen und Migrationen.

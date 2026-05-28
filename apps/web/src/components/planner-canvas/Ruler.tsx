@@ -1,13 +1,49 @@
-const rulerMarks = ["0m", "5m", "10m", "15m", "20m", "25m", "30m", "35m", "40m"];
+import type { CSSProperties } from "react";
+import type { Rect } from "@seatflow/types";
 
-export function Ruler({ orientation }: { orientation: "horizontal" | "vertical" }) {
+const markStepMm = 5000;
+
+export function Ruler({
+  lengthPx,
+  offsetPx,
+  orientation,
+  pxPerMm,
+  viewBox
+}: {
+  lengthPx: number;
+  offsetPx: number;
+  orientation: "horizontal" | "vertical";
+  pxPerMm: number;
+  viewBox: Rect;
+}) {
+  const marks = createMarks(viewBox, orientation, pxPerMm);
+  const style: CSSProperties =
+    orientation === "horizontal"
+      ? { height: offsetPx, left: offsetPx, top: 0, width: lengthPx }
+      : { height: lengthPx, left: 0, top: offsetPx, width: offsetPx };
+
   return (
-    <div className={`ruler ruler-${orientation}`} aria-hidden="true">
-      {rulerMarks.map((mark, index) => (
-        <span key={mark} style={{ [orientation === "horizontal" ? "left" : "top"]: `${index * 12.5}%` }}>
-          {mark}
+    <div className={`ruler ruler-${orientation}`} style={style} aria-hidden="true">
+      {marks.map((mark) => (
+        <span key={mark.value} style={{ [orientation === "horizontal" ? "left" : "top"]: `${mark.positionPx}px` }}>
+          {mark.label}
         </span>
       ))}
     </div>
   );
+}
+
+function createMarks(viewBox: Rect, orientation: "horizontal" | "vertical", pxPerMm: number): Array<{ label: string; positionPx: number; value: number }> {
+  const start = orientation === "horizontal" ? viewBox.x : viewBox.y;
+  const length = orientation === "horizontal" ? viewBox.width : viewBox.height;
+  const firstMark = Math.ceil(start / markStepMm) * markStepMm;
+  const marks: Array<{ label: string; positionPx: number; value: number }> = [];
+  for (let value = firstMark; value <= start + length; value += markStepMm) {
+    marks.push({
+      label: `${Math.round(value / 1000)}m`,
+      positionPx: (value - start) * pxPerMm,
+      value
+    });
+  }
+  return marks;
 }

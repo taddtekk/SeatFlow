@@ -1,8 +1,8 @@
 "use client";
 
-import { chairToRect, objectToRect, snapPointToGrid, tableToRect } from "@seatflow/geometry";
+import { chairToRect, mmToCanvasPx, objectToRect, snapPointToGrid, tableToRect } from "@seatflow/geometry";
 import type { Chair, DrawingObject, Plan, Point, Rect, SelectedObjectType, Table, TableGroup, TableSeat, ToolType, ValidationResult } from "@seatflow/types";
-import type { PointerEvent } from "react";
+import type { CSSProperties, PointerEvent, WheelEvent } from "react";
 import { useMemo, useRef } from "react";
 import { CanvasToolbar } from "./CanvasToolbar";
 import { Ruler } from "./Ruler";
@@ -37,6 +37,12 @@ interface DragState {
   startRect: Rect;
 }
 
+const BASE_PX_PER_MM = 1100 / 40000;
+const VIEWBOX_MARGIN_MM = 2000;
+const RULER_SIZE_PX = 30;
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 2;
+
 export function PlannerCanvas({
   activeTool,
   gridSizeMm,
@@ -55,17 +61,30 @@ export function PlannerCanvas({
   zoom
 }: PlannerCanvasProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const roomRect = objectToRect(plan.room);
   const viewBox = useMemo(() => {
-    const margin = 3000;
     return {
-      x: Math.max(0, roomRect.x - margin),
-      y: Math.max(0, roomRect.y - margin),
-      width: roomRect.width + margin * 2,
-      height: roomRect.height + margin * 2
+      x: Math.max(0, roomRect.x - VIEWBOX_MARGIN_MM),
+      y: Math.max(0, roomRect.y - VIEWBOX_MARGIN_MM),
+      width: roomRect.width + VIEWBOX_MARGIN_MM * 2,
+      height: roomRect.height + VIEWBOX_MARGIN_MM * 2
     };
   }, [roomRect.height, roomRect.width, roomRect.x, roomRect.y]);
+  const pxPerMm = BASE_PX_PER_MM * zoom;
+  const canvasPixelWidth = Math.round(mmToCanvasPx(viewBox.width, pxPerMm));
+  const canvasPixelHeight = Math.round(mmToCanvasPx(viewBox.height, pxPerMm));
+  const rulerSize = layers.showMeasurements ? RULER_SIZE_PX : 0;
+  const stagePixelWidth = canvasPixelWidth + rulerSize;
+  const stagePixelHeight = canvasPixelHeight + rulerSize;
+  const stageStyle: CSSProperties = { height: stagePixelHeight, width: stagePixelWidth };
+  const svgStyle: CSSProperties = {
+    height: canvasPixelHeight,
+    left: rulerSize,
+    top: rulerSize,
+    width: canvasPixelWidth
+  };
 
   function getSvgPoint(event: PointerEvent<SVGElement>): Point {
     const svg = svgRef.current;
@@ -144,72 +163,108 @@ export function PlannerCanvas({
     onInteractionChange({ isDragging: false, isResizing: false });
   }
 
+  function fitToScreen() {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      onZoomChange(1);
+      return;
+    }
+    const style = window.getComputedStyle(viewport);
+    const horizontalPadding = Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight);
+    const verticalPadding = Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
+    const availableWidth = viewport.clientWidth - horizontalPadding - rulerSize;
+    const availableHeight = viewport.clientHeight - verticalPadding - rulerSize;
+    const widthZoom = availableWidth / mmToCanvasPx(viewBox.width, BASE_PX_PER_MM);
+    const heightZoom = availableHeight / mmToCanvasPx(viewBox.height, BASE_PX_PER_MM);
+    onZoomChange(clampZoom(Math.min(widthZoom, heightZoom)));
+  }
+
+  function handleViewportWheel(event: WheelEvent<HTMLDivElement>) {
+    if (!event.ctrlKey && !event.metaKey) {
+      return;
+    }
+    event.preventDefault();
+    onZoomChange(clampZoom(zoom + (event.deltaY > 0 ? -0.1 : 0.1)));
+  }
+
   return (
     <section className="canvas-area" aria-label="Planfläche">
-      <CanvasToolbar onZoomChange={onZoomChange} zoom={zoom} />
-      <div className="canvas-frame">
-        {layers.showMeasurements ? <Ruler orientation="horizontal" /> : null}
-        {layers.showMeasurements ? <Ruler orientation="vertical" /> : null}
-        <svg
-          className="seatflow-canvas"
-          onPointerDown={handleCanvasPointerDown}
-          onPointerLeave={stopDragging}
-          onPointerMove={handlePointerMove}
-          onPointerUp={stopDragging}
-          ref={svgRef}
-          role="img"
-          style={{ transform: `scale(${zoom})`, transformOrigin: "top left" }}
-          viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
-          aria-label="SeatFlow Planfläche"
-        >
-          <defs>
-            <pattern id="sf-grid" width="1000" height="1000" patternUnits="userSpaceOnUse">
-              <path d="M 1000 0 L 0 0 0 1000" fill="none" stroke="var(--sf-canvas-grid)" strokeWidth="34" />
-            </pattern>
-            <pattern id="sf-grid-strong" width="5000" height="5000" patternUnits="userSpaceOnUse">
-              <path d="M 5000 0 L 0 0 0 5000" fill="none" stroke="var(--sf-canvas-grid-strong)" strokeWidth="48" />
-            </pattern>
-            <pattern id="sf-hatch" width="360" height="360" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-              <line x1="0" x2="0" y1="0" y2="360" stroke="var(--sf-no-seat-zone-stroke)" strokeWidth="48" opacity="0.34" />
-            </pattern>
-            <marker id="sf-arrow" markerHeight="8" markerWidth="8" orient="auto" refX="7" refY="4">
-              <path d="M 0 0 L 8 4 L 0 8 z" fill="var(--sf-escape-route-stroke)" />
-            </marker>
-          </defs>
+      <CanvasToolbar onFitToScreen={fitToScreen} onZoomChange={(nextZoom) => onZoomChange(clampZoom(nextZoom))} zoom={zoom} />
+      <div className="canvas-viewport" onWheel={handleViewportWheel} ref={viewportRef}>
+        <div className="canvas-scroll-content">
+          <div className="canvas-stage" style={stageStyle}>
+            {layers.showMeasurements ? <div className="ruler-corner" aria-hidden="true" /> : null}
+            {layers.showMeasurements ? <Ruler lengthPx={canvasPixelWidth} offsetPx={rulerSize} orientation="horizontal" pxPerMm={pxPerMm} viewBox={viewBox} /> : null}
+            {layers.showMeasurements ? <Ruler lengthPx={canvasPixelHeight} offsetPx={rulerSize} orientation="vertical" pxPerMm={pxPerMm} viewBox={viewBox} /> : null}
+            <svg
+              aria-label="SeatFlow Planfläche"
+              className="seatflow-canvas"
+              height={canvasPixelHeight}
+              onPointerDown={handleCanvasPointerDown}
+              onPointerLeave={stopDragging}
+              onPointerMove={handlePointerMove}
+              onPointerUp={stopDragging}
+              preserveAspectRatio="none"
+              ref={svgRef}
+              role="img"
+              style={svgStyle}
+              viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
+              width={canvasPixelWidth}
+            >
+              <defs>
+                <pattern id="sf-grid" width="1000" height="1000" patternUnits="userSpaceOnUse">
+                  <path d="M 1000 0 L 0 0 0 1000" fill="none" stroke="var(--sf-canvas-grid)" strokeWidth="34" />
+                </pattern>
+                <pattern id="sf-grid-strong" width="5000" height="5000" patternUnits="userSpaceOnUse">
+                  <path d="M 5000 0 L 0 0 0 5000" fill="none" stroke="var(--sf-canvas-grid-strong)" strokeWidth="48" />
+                </pattern>
+                <pattern id="sf-hatch" width="360" height="360" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                  <line x1="0" x2="0" y1="0" y2="360" stroke="var(--sf-no-seat-zone-stroke)" strokeWidth="48" opacity="0.34" />
+                </pattern>
+                <marker id="sf-arrow" markerHeight="8" markerWidth="8" orient="auto" refX="7" refY="4">
+                  <path d="M 0 0 L 8 4 L 0 8 z" fill="var(--sf-escape-route-stroke)" />
+                </marker>
+              </defs>
 
-          <rect className="canvas-bg" height={viewBox.height} width={viewBox.width} x={viewBox.x} y={viewBox.y} />
-          {layers.showGrid ? <rect fill="url(#sf-grid)" height={viewBox.height} width={viewBox.width} x={viewBox.x} y={viewBox.y} /> : null}
-          {layers.showGrid ? <rect fill="url(#sf-grid-strong)" height={viewBox.height} width={viewBox.width} x={viewBox.x} y={viewBox.y} /> : null}
+              <rect className="canvas-bg" height={viewBox.height} width={viewBox.width} x={viewBox.x} y={viewBox.y} />
+              {layers.showGrid ? <rect fill="url(#sf-grid)" height={viewBox.height} width={viewBox.width} x={viewBox.x} y={viewBox.y} /> : null}
+              {layers.showGrid ? <rect fill="url(#sf-grid-strong)" height={viewBox.height} width={viewBox.width} x={viewBox.x} y={viewBox.y} /> : null}
 
-          <rect className="room-outline" height={roomRect.height} width={roomRect.width} x={roomRect.x} y={roomRect.y} />
-          {plan.objects.map((object) => (
-            <PlanObject
-              hidden={isObjectHidden(object, layers)}
-              key={object.id}
-              object={object}
-              onHandlePointerDown={handleHandlePointerDown}
-              onPointerDown={handleEntityPointerDown}
-              selected={selectedObjectId === object.id}
-            />
-          ))}
+              <rect className="room-outline" height={roomRect.height} width={roomRect.width} x={roomRect.x} y={roomRect.y} />
+              {plan.objects.map((object) => (
+                <PlanObject
+                  hidden={isObjectHidden(object, layers)}
+                  key={object.id}
+                  object={object}
+                  onHandlePointerDown={handleHandlePointerDown}
+                  onPointerDown={handleEntityPointerDown}
+                  selected={selectedObjectId === object.id}
+                />
+              ))}
 
-          {layers.showChairs ? <ChairLayer chairs={plan.chairs} zoom={zoom} /> : null}
-          {layers.showChairs ? <BlockLabels plan={plan} zoom={zoom} /> : null}
-          {layers.showTables ? (
-            <TableLayer
-              onHandlePointerDown={handleHandlePointerDown}
-              onPointerDown={handleEntityPointerDown}
-              selectedObjectId={selectedObjectId}
-              tableSeats={plan.tableSeats}
-              tableGroups={plan.tableGroups}
-              tables={plan.tables}
-            />
-          ) : null}
-          {layers.showValidation ? <ValidationMarkers plan={plan} validationResults={validationResults} /> : null}
-        </svg>
+              {layers.showChairs ? <ChairLayer chairs={plan.chairs} zoom={zoom} /> : null}
+              {layers.showChairs ? <BlockLabels plan={plan} zoom={zoom} /> : null}
+              {layers.showTables ? (
+                <TableLayer
+                  onHandlePointerDown={handleHandlePointerDown}
+                  onPointerDown={handleEntityPointerDown}
+                  selectedObjectId={selectedObjectId}
+                  tableSeats={plan.tableSeats}
+                  tableGroups={plan.tableGroups}
+                  tables={plan.tables}
+                />
+              ) : null}
+              {layers.showValidation ? <ValidationMarkers plan={plan} validationResults={validationResults} /> : null}
+            </svg>
+          </div>
+        </div>
       </div>
     </section>
   );
+}
+
+function clampZoom(zoom: number): number {
+  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Number.isFinite(zoom) ? zoom : 1));
 }
 
 function PlanObject({

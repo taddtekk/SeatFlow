@@ -191,7 +191,7 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
     case "SET_ZOOM":
       return {
         ...state,
-        zoom: Math.max(0.5, Math.min(2, action.zoom))
+        zoom: Math.max(0.25, Math.min(2, action.zoom))
       };
     case "SET_PAN":
       return {

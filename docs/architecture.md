@@ -27,6 +27,14 @@ Die SVG-Planfläche wandelt Pointer-Koordinaten zentral in Millimeter um. Das Ra
 
 Werkzeuge in der linken Leiste setzen `activeTool`. Add-Werkzeuge erzeugen Standardobjekte am Klickpunkt und wechseln danach zurück zur Auswahl. Bestuhlungsbereiche und Tischbereiche tragen ihre Generator-Parameter in `properties`. Tabellen und Tischgruppen erzeugen zugehörige `TableSeat`-Daten.
 
+## Workspace-Viewport und Zoom
+
+Der Planner ist als dreispaltiges Grid aufgebaut: Werkzeugleiste, Workspace und Eigenschaften-/Validierungsleiste bleiben im normalen Layoutfluss. Der Workspace nutzt `grid-template-rows: minmax(0, 1fr) auto`, sodass die Statusbar unten sichtbar bleibt und die Canvas sie nicht überdecken kann.
+
+Die eigentliche Planfläche liegt in `.canvas-viewport` mit eigenem `overflow: auto`. Darin sitzt `.canvas-stage` mit echten berechneten Pixelmaßen. Das SVG behält eine Millimeter-`viewBox`; seine sichtbare Größe wird aus `viewBox.width/height * basePxPerMm * zoom` berechnet. Ein direkter CSS-Transform auf dem SVG wird bewusst vermieden, weil `transform: scale(...)` die optische Größe ändert, ohne die Layoutgröße des scrollbaren Containers zu verändern.
+
+Die Lineale liegen in derselben Stage wie das SVG und nutzen denselben `pxPerMm`-Wert. Fit-to-screen berechnet den passenden Zoom aus der Viewportgröße abzüglich Padding und Linealfläche und begrenzt ihn auf den Editor-Zoombereich.
+
 ## Generatoren und Validierung
 
 `packages/planner-core` enthält `generateSeating(plan, options)`, `generateTableLayout(plan, options)` und `generateLayouts(plan, options)`. Wenn Bestuhlungsbereiche oder Tischbereiche vorhanden sind, werden sie bevorzugt genutzt. Ohne Bereiche greift ein freier Fallback im Raum. Die Bestuhlung unterstützt einfache linke/rechte Gänge, Mittelgänge und Querwege; diese werden als `generated_aisle` sichtbar gemacht.
