@@ -103,8 +103,8 @@ button {
 .meta-select strong {
   color: var(--sf-text);
   font-weight: 750;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .topbar-actions {
