@@ -41,8 +41,8 @@ Empfohlene Plesk-Einstellungen:
 
 - Node.js-Version: `20.20.2`
 - Application root: Repository-Ordner
-- Application startup file: `node_modules/tsx/dist/cli.mjs`
-- Application parameters: `scripts/plesk-server.ts`
+- Application startup file: `app.js`
+- Application parameters: leer lassen
 - Document root: Repository-Ordner
 - Environment variables:
   - `NODE_ENV=production`

@@ -10,7 +10,7 @@
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "postbuild": "node scripts/push-after-build.mjs",
-    "start": "tsx scripts/plesk-server.ts",
+    "start": "node app.js",
     "start:api": "pnpm --filter @seatflow/api start",
     "start:web": "pnpm --filter @seatflow/web start",
     "typecheck": "pnpm -r typecheck"
