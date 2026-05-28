@@ -1,9 +1,9 @@
 import { createRepositories } from "@seatflow/repositories";
-import { PlannerClient } from "./planner-client";
+import { AppShell } from "../../components/app-shell/AppShell";
 
 export default async function PlannerPage() {
   const repositories = createRepositories({ storageDriver: "memory" });
   const plan = await repositories.plans.getDemoPlan();
 
-  return <PlannerClient initialPlan={plan} />;
+  return <AppShell initialPlan={plan} />;
 }
