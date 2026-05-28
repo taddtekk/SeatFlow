@@ -2,7 +2,7 @@
 
 ## M1 Build-Hinweis
 
-Auf Plesk sollte `AUTO_PUSH_AFTER_BUILD=false` gesetzt werden. Lokale Builds pushen automatisch nach GitHub, der Server-Build soll dagegen nur installieren und bauen. Speichern nutzt in M1 InMemory-Repositories und ist nach einem Server-Neustart nicht dauerhaft.
+Auf Plesk sollte `AUTO_PUSH_AFTER_BUILD=false` gesetzt werden. Lokale Builds pushen automatisch nach GitHub, der Server-Build soll dagegen nur installieren und bauen. Speichern nutzt im aktuellen MVP InMemory-Repositories und ist nach einem Server-Neustart nicht dauerhaft. Der Browser kann zusätzlich einen lokalen Entwurf in `localStorage` behalten, das ersetzt aber keine serverseitige Persistenz.
 
 ## Voraussetzung
 
@@ -19,6 +19,8 @@ Auf Plesk sollte `AUTO_PUSH_AFTER_BUILD=false` gesetzt werden. Lokale Builds pus
 
 ```bash
 npm install
+npm run typecheck
+npm run test
 npm run build
 npm run start
 ```
@@ -44,3 +46,4 @@ MariaDB-Variablen sind vorbereitet, aber die echte MariaDB-Implementierung ist i
 - keine echte MariaDB-Verbindung
 - keine vollständige Brandschutzberechnung
 - PDF-Export ist funktional, aber noch einfach
+- InMemory-Speicherung geht bei Server-Neustart verloren

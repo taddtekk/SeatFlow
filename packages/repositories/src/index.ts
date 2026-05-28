@@ -159,7 +159,9 @@ export function createDemoPlan(): Plan {
     id: "room-demo",
     role: "room",
     name: "Haupthalle",
-    geometry: { kind: "rect", rect: { x: 3000, y: 1000, width: 36000, height: 31600 } }
+    locked: true,
+    visible: true,
+    geometry: { kind: "rect", rect: { x: 3000, y: 1000, width: 40000, height: 32000 } }
   };
   const objects: DrawingObject[] = [
     {
@@ -190,6 +192,7 @@ export function createDemoPlan(): Plan {
     projectId: "project-demo",
     name: "Hauptbühne - Variante 3",
     status: "Entwurf",
+    version: 3,
     room: room as Plan["room"],
     objects,
     seatingBlocks: [],
@@ -198,6 +201,10 @@ export function createDemoPlan(): Plan {
     tables: [],
     tableSeats: [],
     ruleProfile: createDefaultRuleProfile(),
+    metadata: {
+      projectName: "Sommerkonzert 2026",
+      notes: "Strukturierter Demo-Plan fuer den interaktiven SeatFlow Planner."
+    },
     updatedAtIso: new Date(0).toISOString()
   };
   const seating = generateSeating(basePlan);
@@ -210,7 +217,8 @@ export function createDemoPlan(): Plan {
     tables: tableLayout.tables,
     tableSeats: tableLayout.tableSeats
   };
-  return { ...plan, validationResult: validatePlan(plan) };
+  const validationResult = validatePlan(plan);
+  return { ...plan, validationResult, validationResults: validationResult };
 }
 
 function clone<T>(value: T): T {

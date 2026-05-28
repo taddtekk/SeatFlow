@@ -1,10 +1,10 @@
 # SeatFlow
 
-## M1 Interaktiver Editor
+## M1/M2 Interaktiver Editor und Platzierungslogik
 
-Der Planner unter `/planner` nutzt jetzt einen zentralen `useReducer`-Editor-State. Der Plan wird aus strukturierten Plan-Daten gerendert: Raum, Bühne, FOH, Sperrflächen, Fluchtwege, Ausgänge, Stühle, Tische und Tischgruppen. Objekte können ausgewählt, verschoben, skaliert, hinzugefügt und gelöscht werden. Das Eigenschaftenpanel bearbeitet die ausgewählte Entität direkt im Plan-State.
+Der Planner unter `/planner` nutzt einen zentralen `useReducer`-Editor-State. Der Plan wird aus strukturierten Plan-Daten gerendert: Raum, Bühne, FOH, Sperrflächen, Fluchtwege, Ausgänge, Stühle, Tische, Tischsitze und Tischgruppen. Objekte können ausgewählt, verschoben, skaliert, hinzugefügt und gelöscht werden. Das Eigenschaftenpanel bearbeitet die ausgewählte Entität direkt im Plan-State.
 
-Die Aktionen „Bestuhlung neu berechnen“, „Validierung erneut prüfen“, „PDF exportieren“ und „Speichern“ verwenden den aktuellen Plan. Speichern läuft im MVP über das InMemory-Repository und ist daher nur bis zum Server-Neustart persistent.
+Die Aktionen „Bestuhlung neu berechnen“, „Tischlayout erzeugen“, „Validierung erneut prüfen“, „PDF exportieren“ und „Speichern“ verwenden den aktuellen Plan. Speichern läuft im MVP über das InMemory-Repository und ist daher nur bis zum Server-Neustart persistent. Zusätzlich legt der Browser einen stillen `localStorage`-Entwurf als Komfort-Fallback ab.
 
 ## M1.1 Editor-Komfort
 
@@ -39,6 +39,16 @@ npm run dev
 ```bash
 npm run build
 ```
+
+## Checks
+
+```bash
+npm run typecheck
+npm run test
+npm run build
+```
+
+`npm run test` baut die serverseitigen Packages und prüft Geometrie, Platzierungslogik und Validierung mit Node `assert`.
 
 ## Produktionsstart lokal wie in Plesk
 
@@ -76,17 +86,18 @@ docs                  Entwicklerdokumentation
 ## Aktuelle Funktionen
 
 - Demo-Plan unter `/planner`
-- Raum, Bühne, FOH, Sperrflächen, Fluchtwege, Ausgänge, Stühle und Tische sichtbar
-- Auto-Bestuhlung per API
-- einfaches Tischlayout
-- Validierungsmeldungen
-- PDF-Export nach `public/exports`
+- Raum, Bühne, FOH, Sperrflächen, Fluchtwege, Ausgänge, Stühle, Tische, Tischsitze und Tischgruppen aus Plan-Daten gerendert
+- Auswahl, Drag & Drop, rechteckiges Resize, Löschen und Eigenschaftenbearbeitung
+- Layer-Toggles für Stühle, Tische, Fluchtwege, Sperrflächen, Raster, Maße und Validierung
+- Auto-Bestuhlung per API mit Raumgrenzen, Sperrflächen, Fluchtwegen, FOH, Bühne und Tischen als Blocker
+- einfaches Tischlayout mit runden und rechteckigen Tischen
+- technische Validierungsmeldungen mit Fehlercodes
+- PDF-Export des aktuellen Plans nach `public/exports`
 - InMemory-Repositories
 - MariaDB-Architektur vorbereitet, noch nicht implementiert
 
 ## Geplante Funktionen
 
-- echter interaktiver Editor mit Zeichnen, Verschieben und Größenänderung
 - MariaDB-Persistenz
 - erweiterte Regelprofile
 - belastbare PDF-Layouts

@@ -19,7 +19,7 @@
     "start:plesk": "node app.js",
     "lint": "npm run typecheck",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "node scripts/no-tests.cjs"
+    "test": "npm run build:server && node scripts/run-tests.cjs"
   },
   "dependencies": {
     "@fastify/static": "^8.2.0",

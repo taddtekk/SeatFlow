@@ -55,6 +55,7 @@ export function ToolSidebar({
   activeTool,
   layers,
   onExportPdf,
+  onGenerateTables,
   onRecalculate,
   onToggleLayer,
   onToolChange
@@ -62,6 +63,7 @@ export function ToolSidebar({
   activeTool: ToolType;
   layers: Record<"showChairs" | "showTables" | "showEscapeRoutes" | "showNoSeatZones" | "showGrid" | "showMeasurements" | "showValidation", boolean>;
   onExportPdf: () => void;
+  onGenerateTables: () => void;
   onRecalculate: () => void;
   onToggleLayer: (layer: LayerKey) => void;
   onToolChange: (tool: ToolType) => void;
@@ -82,6 +84,7 @@ export function ToolSidebar({
 
       <SidebarSection title="Aktionen">
         <ActionButton icon={<Cloud size={18} />} label="Bestuhlung neu berechnen" onClick={onRecalculate} />
+        <ActionButton icon={<Table2 size={18} />} label="Tischlayout erzeugen" onClick={onGenerateTables} />
         <ActionButton icon={<FileDown size={18} />} label="PDF exportieren" onClick={onExportPdf} />
       </SidebarSection>
 

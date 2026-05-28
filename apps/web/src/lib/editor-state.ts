@@ -1,4 +1,4 @@
-import type { DrawingObject, EditorHistoryEntry, EditorState, Plan, PlanAction, Rect, Table, TableSeat, ValidationResult } from "@seatflow/types";
+import type { DrawingObject, EditorHistoryEntry, EditorState, Plan, PlanAction, Rect, SelectedObjectType, Table, TableSeat, ValidationResult } from "@seatflow/types";
 
 const layerKeys = ["showChairs", "showTables", "showEscapeRoutes", "showNoSeatZones", "showGrid", "showMeasurements", "showValidation"] as const;
 const maxHistoryLength = 40;
@@ -18,11 +18,19 @@ export function createInitialEditorState(plan: Plan): EditorState {
     showValidation: true,
     dirtyState: false,
     zoom: 1,
+    panOffset: { x: 0, y: 0 },
+    gridSizeMm: 250,
+    snapToGrid: true,
+    isDragging: false,
+    isResizing: false,
+    exportStatus: "idle",
+    saveStatus: "saved",
+    lastCalculationAt: plan.updatedAtIso,
     lastCalculationIso: plan.updatedAtIso,
     undoStack: [],
     redoStack: []
   };
-  return selectedObjectId ? { ...state, selectedObjectId } : state;
+  return selectedObjectId ? { ...state, selectedObjectId, selectedObjectType: "object" } : state;
 }
 
 export function editorReducer(state: EditorState, action: PlanAction): EditorState {
@@ -31,8 +39,10 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
       return {
         ...state,
         currentPlan: action.plan,
-        validationResults: action.plan.validationResult ?? state.validationResults,
+        validationResults: action.plan.validationResults ?? action.plan.validationResult ?? state.validationResults,
         dirtyState: false,
+        saveStatus: "saved",
+        lastCalculationAt: action.plan.updatedAtIso,
         lastCalculationIso: action.plan.updatedAtIso,
         undoStack: [],
         redoStack: []
@@ -42,9 +52,8 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
     case "REDO":
       return redo(state);
     case "SELECT_OBJECT":
-      if (action.objectId) {
-        return { ...state, selectedObjectId: action.objectId };
-      }
+      return withSelection(state, action.objectId, action.objectType ?? inferSelectedObjectType(state.currentPlan, action.objectId));
+    case "CLEAR_SELECTION":
       return withoutSelection(state);
     case "SET_ACTIVE_TOOL":
       return {
@@ -107,15 +116,24 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
           updatedAtIso: new Date().toISOString()
         }
       });
-    case "UPDATE_TABLE":
+    case "UPDATE_TABLE": {
+      const table = state.currentPlan.tables.find((item) => item.id === action.tableId);
+      if (!table) {
+        return state;
+      }
+      const nextTable = applyTableChanges(table, action.changes);
       return withHistory(state, {
         ...state,
         currentPlan: {
           ...state.currentPlan,
-          tables: state.currentPlan.tables.map((table) => (table.id === action.tableId ? { ...table, ...action.changes } : table)),
+          tables: state.currentPlan.tables.map((item) => (item.id === action.tableId ? nextTable : item)),
+          tableSeats: tableChangesAffectSeats(action.changes)
+            ? state.currentPlan.tableSeats.flatMap((seat) => (seat.tableId === action.tableId ? [] : [seat])).concat(createTableSeatsFromTable(nextTable))
+            : state.currentPlan.tableSeats,
           updatedAtIso: new Date().toISOString()
         }
       });
+    }
     case "DELETE_OBJECT":
       return withHistory(state, deleteEntity(state, action.objectId));
     case "MOVE_OBJECT":
@@ -131,6 +149,7 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
           seatingBlocks: action.seatingBlocks,
           updatedAtIso: new Date().toISOString()
         },
+        lastCalculationAt: new Date().toISOString(),
         lastCalculationIso: new Date().toISOString()
       });
     case "SET_TABLES":
@@ -143,6 +162,7 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
           tableSeats: action.tableSeats,
           updatedAtIso: new Date().toISOString()
         },
+        lastCalculationAt: new Date().toISOString(),
         lastCalculationIso: new Date().toISOString()
       });
     case "SET_VALIDATION_RESULTS":
@@ -151,7 +171,8 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         validationResults: action.validationResults,
         currentPlan: {
           ...state.currentPlan,
-          validationResult: action.validationResults
+          validationResult: action.validationResults,
+          validationResults: action.validationResults
         }
       };
     case "SET_DIRTY":
@@ -172,6 +193,43 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         ...state,
         zoom: Math.max(0.5, Math.min(2, action.zoom))
       };
+    case "SET_PAN":
+      return {
+        ...state,
+        panOffset: action.panOffset
+      };
+    case "SET_SNAP_TO_GRID":
+      return {
+        ...state,
+        snapToGrid: action.snapToGrid
+      };
+    case "SET_GRID_SIZE":
+      return {
+        ...state,
+        gridSizeMm: Math.max(50, action.gridSizeMm)
+      };
+    case "SET_SAVE_STATUS":
+      return {
+        ...state,
+        saveStatus: action.saveStatus
+      };
+    case "SET_EXPORT_STATUS":
+      return {
+        ...state,
+        exportStatus: action.exportStatus
+      };
+    case "SET_LAST_CALCULATION_AT":
+      return {
+        ...state,
+        lastCalculationAt: action.lastCalculationAt,
+        lastCalculationIso: action.lastCalculationAt
+      };
+    case "SET_INTERACTION_FLAGS":
+      return {
+        ...state,
+        ...(action.isDragging === undefined ? {} : { isDragging: action.isDragging }),
+        ...(action.isResizing === undefined ? {} : { isResizing: action.isResizing })
+      };
     default:
       return state;
   }
@@ -183,7 +241,8 @@ export function withValidation(state: EditorState, validationResults: Validation
     validationResults,
     currentPlan: {
       ...state.currentPlan,
-      validationResult: validationResults
+      validationResult: validationResults,
+      validationResults
     }
   };
 }
@@ -224,19 +283,28 @@ function redo(state: EditorState): EditorState {
 
 function createHistoryEntry(state: EditorState): EditorHistoryEntry {
   const entry: EditorHistoryEntry = { plan: state.currentPlan };
-  return state.selectedObjectId ? { ...entry, selectedObjectId: state.selectedObjectId } : entry;
+  if (!state.selectedObjectId) {
+    return entry;
+  }
+  return {
+    ...entry,
+    selectedObjectId: state.selectedObjectId,
+    ...(state.selectedObjectType ? { selectedObjectType: state.selectedObjectType } : {})
+  };
 }
 
 function applyHistoryEntry(state: EditorState, entry: EditorHistoryEntry, undoStack: EditorHistoryEntry[], redoStack: EditorHistoryEntry[]): EditorState {
   const next: EditorState = {
     ...state,
     currentPlan: entry.plan,
-    validationResults: entry.plan.validationResult ?? state.validationResults,
+    validationResults: entry.plan.validationResults ?? entry.plan.validationResult ?? state.validationResults,
     dirtyState: true,
     undoStack,
     redoStack
   };
-  return entry.selectedObjectId ? { ...next, selectedObjectId: entry.selectedObjectId } : withoutSelection(next);
+  return entry.selectedObjectId
+    ? { ...next, selectedObjectId: entry.selectedObjectId, ...(entry.selectedObjectType ? { selectedObjectType: entry.selectedObjectType } : {}) }
+    : withoutSelection(next);
 }
 
 function deleteEntity(state: EditorState, id: string): EditorState {
@@ -257,8 +325,16 @@ function deleteEntity(state: EditorState, id: string): EditorState {
 }
 
 function withoutSelection(state: EditorState): EditorState {
-  const { selectedObjectId: _selectedObjectId, ...rest } = state;
+  const { selectedObjectId: _selectedObjectId, selectedObjectType: _selectedObjectType, ...rest } = state;
   return rest;
+}
+
+function withSelection(state: EditorState, selectedObjectId: string, selectedObjectType?: SelectedObjectType): EditorState {
+  return {
+    ...state,
+    selectedObjectId,
+    ...(selectedObjectType ? { selectedObjectType } : {})
+  };
 }
 
 function moveEntity(state: EditorState, id: string, dxMm: number, dyMm: number): EditorState {
@@ -285,22 +361,16 @@ function resizeEntity(state: EditorState, id: string, widthMm?: number, heightMm
   if (group) {
     return resizeTableGroup(state, group.tableIds, widthMm, heightMm);
   }
+  const table = state.currentPlan.tables.find((item) => item.id === id);
+  const resizedTable = table ? applyTableChanges(table, { ...(widthMm === undefined ? {} : { widthMm }), ...(heightMm === undefined ? {} : { depthMm: heightMm }) }) : null;
 
   return {
     ...state,
     currentPlan: {
       ...state.currentPlan,
       objects: state.currentPlan.objects.map((object) => (object.id === id ? resizeObject(object, widthMm, heightMm) : object)),
-      tables: state.currentPlan.tables.map((table) =>
-        table.id === id
-          ? {
-              ...table,
-              widthMm: widthMm ?? table.widthMm,
-              depthMm: heightMm ?? table.depthMm,
-              ...(table.type === "round" ? { diameterMm: Math.max(widthMm ?? table.widthMm, heightMm ?? table.depthMm) } : {})
-            }
-          : table
-      ),
+      tables: state.currentPlan.tables.map((item) => (resizedTable && item.id === id ? resizedTable : item)),
+      tableSeats: resizedTable ? state.currentPlan.tableSeats.filter((seat) => seat.tableId !== id).concat(createTableSeatsFromTable(resizedTable)) : state.currentPlan.tableSeats,
       updatedAtIso: new Date().toISOString()
     }
   };
@@ -350,26 +420,28 @@ function resizeObject(object: DrawingObject, widthMm?: number, heightMm?: number
   if (object.geometry.kind !== "rect") {
     return object;
   }
+  const minimum = getMinimumSize(object.role);
   return {
     ...object,
     geometry: {
       ...object.geometry,
       rect: {
         ...object.geometry.rect,
-        width: widthMm ?? object.geometry.rect.width,
-        height: heightMm ?? object.geometry.rect.height
+        width: Math.max(minimum.width, widthMm ?? object.geometry.rect.width),
+        height: Math.max(minimum.height, heightMm ?? object.geometry.rect.height)
       }
     }
   };
 }
 
 function moveTable(table: Table, dxMm: number, dyMm: number): Table {
+  const x = (table.x ?? table.position.x) + dxMm;
+  const y = (table.y ?? table.position.y) + dyMm;
   return {
     ...table,
-    position: {
-      x: table.position.x + dxMm,
-      y: table.position.y + dyMm
-    }
+    x,
+    y,
+    position: { x, y }
   };
 }
 
@@ -378,9 +450,11 @@ function scaleTable(table: Table, origin: Rect, scaleX: number, scaleY: number):
   const depthMm = Math.max(600, table.depthMm * scaleY);
   return {
     ...table,
+    x: origin.x + ((table.x ?? table.position.x) - origin.x) * scaleX,
+    y: origin.y + ((table.y ?? table.position.y) - origin.y) * scaleY,
     position: {
-      x: origin.x + (table.position.x - origin.x) * scaleX,
-      y: origin.y + (table.position.y - origin.y) * scaleY
+      x: origin.x + ((table.x ?? table.position.x) - origin.x) * scaleX,
+      y: origin.y + ((table.y ?? table.position.y) - origin.y) * scaleY
     },
     widthMm,
     depthMm,
@@ -412,10 +486,10 @@ function getGroupRect(tables: Table[]): Rect | null {
 
 function tableToRect(table: Table): Rect {
   return {
-    x: table.position.x,
-    y: table.position.y,
-    width: table.diameterMm ?? table.widthMm,
-    height: table.diameterMm ?? table.depthMm
+    x: table.x ?? table.position.x,
+    y: table.y ?? table.position.y,
+    width: table.type === "round" ? table.diameterMm ?? table.widthMm : table.widthMm,
+    height: table.type === "round" ? table.diameterMm ?? table.depthMm : table.depthMm
   };
 }
 
@@ -430,4 +504,103 @@ export function updateObjectRect(object: DrawingObject, rect: Rect): DrawingObje
       rect
     }
   };
+}
+
+function inferSelectedObjectType(plan: Plan, objectId: string): SelectedObjectType | undefined {
+  if (plan.room.id === objectId) {
+    return "room";
+  }
+  if (plan.objects.some((object) => object.id === objectId)) {
+    return "object";
+  }
+  if (plan.tables.some((table) => table.id === objectId)) {
+    return "table";
+  }
+  if (plan.tableGroups.some((group) => group.id === objectId)) {
+    return "table_group";
+  }
+  return undefined;
+}
+
+function getMinimumSize(role: DrawingObject["role"]): { width: number; height: number } {
+  if (role === "stage") return { width: 1000, height: 1000 };
+  if (role === "foh") return { width: 1000, height: 1000 };
+  if (role === "no_seat_zone" || role === "stairs" || role === "stage_access" || role === "technical_area" || role === "wheelchair_area") return { width: 500, height: 500 };
+  if (role === "escape_route") return { width: 500, height: 500 };
+  if (role === "exit") return { width: 300, height: 300 };
+  if (role === "table") return { width: 500, height: 500 };
+  if (role === "seating_block") return { width: 1000, height: 1000 };
+  return { width: 100, height: 100 };
+}
+
+function applyTableChanges(table: Table, changes: Partial<Table>): Table {
+  const next: Table = { ...table, ...changes };
+  const x = changes.x ?? changes.position?.x ?? next.x ?? next.position.x;
+  const y = changes.y ?? changes.position?.y ?? next.y ?? next.position.y;
+  const seatCount = changes.seatCount ?? changes.seats ?? next.seatCount ?? next.seats;
+  const widthMm = Math.max(500, changes.widthMm ?? next.widthMm);
+  const depthMm = Math.max(500, changes.depthMm ?? next.depthMm);
+  const roundDiameter = next.type === "round" ? Math.max(500, changes.diameterMm ?? next.diameterMm ?? widthMm, widthMm, depthMm) : undefined;
+  const normalized = {
+    ...next,
+    x,
+    y,
+    position: { x, y },
+    widthMm: next.type === "round" ? roundDiameter ?? widthMm : widthMm,
+    depthMm: next.type === "round" ? roundDiameter ?? depthMm : depthMm,
+    ...(next.type === "round" && roundDiameter ? { diameterMm: roundDiameter } : {}),
+    seatCount,
+    seats: seatCount
+  };
+  if (normalized.type === "round") {
+    return normalized;
+  }
+  const { diameterMm: _diameterMm, ...tableWithoutDiameter } = normalized;
+  return tableWithoutDiameter;
+}
+
+function tableChangesAffectSeats(changes: Partial<Table>): boolean {
+  return Boolean(changes.position || changes.x !== undefined || changes.y !== undefined || changes.widthMm !== undefined || changes.depthMm !== undefined || changes.diameterMm !== undefined || changes.seats !== undefined || changes.seatCount !== undefined || changes.type !== undefined);
+}
+
+function createTableSeatsFromTable(table: Table): TableSeat[] {
+  const rect = tableToRect(table);
+  const seatCount = table.seatCount ?? table.seats;
+  if (table.type !== "round") {
+    const seatsPerLongSide = Math.max(1, Math.ceil(seatCount / 2));
+    return Array.from({ length: seatCount }, (_, index) => {
+      const upperSide = index < seatsPerLongSide;
+      const sideIndex = upperSide ? index : index - seatsPerLongSide;
+      const x = rect.x + ((sideIndex + 1) * rect.width) / (seatsPerLongSide + 1) - 240;
+      const y = upperSide ? rect.y - 800 : rect.y + rect.height + 320;
+      return {
+        id: `${table.id}-seat-${index + 1}`,
+        tableId: table.id,
+        x,
+        y,
+        position: { x, y },
+        widthMm: 480,
+        depthMm: 480,
+        rotationDeg: upperSide ? 0 : 180
+      };
+    });
+  }
+
+  const center = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  const radius = (table.diameterMm ?? table.widthMm) / 2 + 320;
+  return Array.from({ length: seatCount }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / seatCount;
+    const x = center.x + Math.cos(angle) * radius - 240;
+    const y = center.y + Math.sin(angle) * radius - 240;
+    return {
+      id: `${table.id}-seat-${index + 1}`,
+      tableId: table.id,
+      x,
+      y,
+      position: { x, y },
+      widthMm: 480,
+      depthMm: 480,
+      rotationDeg: (angle * 180) / Math.PI
+    };
+  });
 }

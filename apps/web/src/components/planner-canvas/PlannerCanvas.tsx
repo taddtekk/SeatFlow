@@ -1,7 +1,7 @@
 "use client";
 
-import { chairToRect, objectToRect, tableToRect } from "@seatflow/geometry";
-import type { Chair, DrawingObject, Plan, Point, Rect, Table, TableGroup, ToolType, ValidationResult } from "@seatflow/types";
+import { chairToRect, objectToRect, snapPointToGrid, tableToRect } from "@seatflow/geometry";
+import type { Chair, DrawingObject, Plan, Point, Rect, SelectedObjectType, Table, TableGroup, TableSeat, ToolType, ValidationResult } from "@seatflow/types";
 import type { PointerEvent } from "react";
 import { useMemo, useRef } from "react";
 import { CanvasToolbar } from "./CanvasToolbar";
@@ -11,15 +11,18 @@ type LayerKey = "showChairs" | "showTables" | "showEscapeRoutes" | "showNoSeatZo
 
 interface PlannerCanvasProps {
   activeTool: ToolType;
+  gridSizeMm: number;
   layers: Record<LayerKey, boolean>;
   onAddAtPoint: (point: Point) => void;
   onDelete: (id: string) => void;
+  onInteractionChange: (flags: { isDragging?: boolean; isResizing?: boolean }) => void;
   onMove: (id: string, dxMm: number, dyMm: number) => void;
   onResize: (id: string, widthMm?: number, heightMm?: number) => void;
-  onSelect: (id?: string) => void;
+  onSelect: (id?: string, objectType?: SelectedObjectType) => void;
   onZoomChange: (zoom: number) => void;
   plan: Plan;
   selectedObjectId?: string | undefined;
+  snapToGrid: boolean;
   validationResults: ValidationResult;
   zoom: number;
 }
@@ -36,15 +39,18 @@ interface DragState {
 
 export function PlannerCanvas({
   activeTool,
+  gridSizeMm,
   layers,
   onAddAtPoint,
   onDelete,
+  onInteractionChange,
   onMove,
   onResize,
   onSelect,
   onZoomChange,
   plan,
   selectedObjectId,
+  snapToGrid,
   validationResults,
   zoom
 }: PlannerCanvasProps) {
@@ -66,11 +72,12 @@ export function PlannerCanvas({
     if (!svg) {
       return { x: 0, y: 0 };
     }
-    const point = svg.createSVGPoint();
-    point.x = event.clientX;
-    point.y = event.clientY;
-    const transformed = point.matrixTransform(svg.getScreenCTM()?.inverse());
-    return { x: snap(transformed.x, event.shiftKey), y: snap(transformed.y, event.shiftKey) };
+    const svgPoint = svg.createSVGPoint();
+    svgPoint.x = event.clientX;
+    svgPoint.y = event.clientY;
+    const transformed = svgPoint.matrixTransform(svg.getScreenCTM()?.inverse());
+    const canvasPoint = { x: Math.round(transformed.x), y: Math.round(transformed.y) };
+    return snapToGrid && !event.shiftKey ? snapPointToGrid(canvasPoint, gridSizeMm) : canvasPoint;
   }
 
   function handleCanvasPointerDown(event: PointerEvent<SVGSVGElement>) {
@@ -86,7 +93,7 @@ export function PlannerCanvas({
     onSelect(undefined);
   }
 
-  function handleEntityPointerDown(event: PointerEvent<SVGGElement>, id: string, rect: Rect) {
+  function handleEntityPointerDown(event: PointerEvent<SVGGElement>, id: string, rect: Rect, objectType: SelectedObjectType) {
     event.stopPropagation();
     if (activeTool === "delete_object") {
       onDelete(id);
@@ -96,8 +103,9 @@ export function PlannerCanvas({
       return;
     }
     const point = getSvgPoint(event);
-    onSelect(id);
+    onSelect(id, objectType);
     dragRef.current = { id, mode: "move", lastPoint: point, startPoint: point, startRect: rect };
+    onInteractionChange({ isDragging: true, isResizing: false });
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -106,6 +114,7 @@ export function PlannerCanvas({
     const point = getSvgPoint(event);
     onSelect(id);
     dragRef.current = { id, mode, lastPoint: point, startPoint: point, startRect: rect };
+    onInteractionChange({ isDragging: mode === "move", isResizing: mode !== "move" });
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -132,6 +141,7 @@ export function PlannerCanvas({
 
   function stopDragging() {
     dragRef.current = null;
+    onInteractionChange({ isDragging: false, isResizing: false });
   }
 
   return (
@@ -189,6 +199,7 @@ export function PlannerCanvas({
               onHandlePointerDown={handleHandlePointerDown}
               onPointerDown={handleEntityPointerDown}
               selectedObjectId={selectedObjectId}
+              tableSeats={plan.tableSeats}
               tableGroups={plan.tableGroups}
               tables={plan.tables}
             />
@@ -210,7 +221,7 @@ function PlanObject({
   hidden: boolean;
   object: DrawingObject;
   onHandlePointerDown: (event: PointerEvent<SVGRectElement>, id: string, rect: Rect, mode: DragMode) => void;
-  onPointerDown: (event: PointerEvent<SVGGElement>, id: string, rect: Rect) => void;
+  onPointerDown: (event: PointerEvent<SVGGElement>, id: string, rect: Rect, objectType: SelectedObjectType) => void;
   selected: boolean;
 }) {
   if (hidden || object.role === "room" || object.geometry.kind !== "rect") {
@@ -220,7 +231,7 @@ function PlanObject({
   const label = object.properties?.label ? String(object.properties.label) : formatLabel(object, rect);
   const className = objectClassName(object.role, selected);
   return (
-    <g className={className} onPointerDown={(event) => onPointerDown(event, object.id, rect)}>
+    <g className={className} onPointerDown={(event) => onPointerDown(event, object.id, rect, "object")}>
       <rect height={rect.height} width={rect.width} x={rect.x} y={rect.y} />
       {object.role === "no_seat_zone" || object.role === "stage_access" ? <rect className="zone-hatch" fill="url(#sf-hatch)" height={rect.height} width={rect.width} x={rect.x} y={rect.y} /> : null}
       {object.role === "escape_route" ? <EscapeRouteLabel object={object} rect={rect} /> : <ObjectLabel label={object.name} rect={rect} subLabel={label !== object.name ? label : undefined} />}
@@ -263,12 +274,14 @@ function TableLayer({
   onHandlePointerDown,
   onPointerDown,
   selectedObjectId,
+  tableSeats,
   tableGroups,
   tables
 }: {
   onHandlePointerDown: (event: PointerEvent<SVGRectElement>, id: string, rect: Rect, mode: DragMode) => void;
-  onPointerDown: (event: PointerEvent<SVGGElement>, id: string, rect: Rect) => void;
+  onPointerDown: (event: PointerEvent<SVGGElement>, id: string, rect: Rect, objectType: SelectedObjectType) => void;
   selectedObjectId?: string | undefined;
+  tableSeats: TableSeat[];
   tableGroups: TableGroup[];
   tables: Table[];
 }) {
@@ -280,20 +293,21 @@ function TableLayer({
         const rect = tableToRect(table);
         const selected = selectedObjectId === table.id || selectedObjectId === table.groupId;
         const pointerTargetId = selectedObjectId === table.groupId && table.groupId ? table.groupId : table.id;
+        const pointerTargetType: SelectedObjectType = pointerTargetId === table.groupId ? "table_group" : "table";
         return (
-          <g key={table.id} onPointerDown={(event) => onPointerDown(event, pointerTargetId, rect)} className={selected ? "selected-table" : ""}>
+          <g key={table.id} onPointerDown={(event) => onPointerDown(event, pointerTargetId, rect, pointerTargetType)} className={selected ? "selected-table" : ""}>
             {table.type === "round" ? (
               <circle cx={rect.x + rect.width / 2} cy={rect.y + rect.height / 2} r={rect.width / 2} />
             ) : (
               <rect height={rect.height} rx="70" width={rect.width} x={rect.x} y={rect.y} />
             )}
-            <TableSeats table={table} />
+            <TableSeats seats={tableSeats.filter((seat) => seat.tableId === table.id)} />
             {selected && selectedObjectId === table.id ? <SelectionHandles id={table.id} onHandlePointerDown={onHandlePointerDown} rect={rect} /> : null}
           </g>
         );
       })}
       {selectedGroup && selectedGroupRect ? (
-        <g className="table-group-selection" onPointerDown={(event) => onPointerDown(event, selectedGroup.id, selectedGroupRect)}>
+        <g className="table-group-selection" onPointerDown={(event) => onPointerDown(event, selectedGroup.id, selectedGroupRect, "table_group")}>
           <rect height={selectedGroupRect.height} width={selectedGroupRect.width} x={selectedGroupRect.x} y={selectedGroupRect.y} />
           <SelectionHandles id={selectedGroup.id} onHandlePointerDown={onHandlePointerDown} rect={selectedGroupRect} />
         </g>
@@ -302,19 +316,11 @@ function TableLayer({
   );
 }
 
-function TableSeats({ table }: { table: Table }) {
-  const rect = tableToRect(table);
-  const center = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-  const offsets: Array<[number, number]> = [
-    [-rect.width / 2 - 280, -140],
-    [rect.width / 2 - 20, -140],
-    [-rect.width / 2 - 280, rect.height - 120],
-    [rect.width / 2 - 20, rect.height - 120]
-  ];
+function TableSeats({ seats }: { seats: TableSeat[] }) {
   return (
     <g className="table-seats">
-      {offsets.map(([dx, dy]) => (
-        <rect height="260" key={`${table.id}-${dx}-${dy}`} rx="45" width="300" x={center.x + dx} y={rect.y + dy} />
+      {seats.map((seat) => (
+        <rect height={seat.depthMm} key={seat.id} rx="45" width={seat.widthMm} x={seat.x ?? seat.position.x} y={seat.y ?? seat.position.y} />
       ))}
     </g>
   );
@@ -404,7 +410,7 @@ function formatLabel(object: DrawingObject, rect: Rect): string {
 
 function isObjectHidden(object: DrawingObject, layers: Record<LayerKey, boolean>): boolean {
   if (object.role === "escape_route") return !layers.showEscapeRoutes;
-  if (["no_seat_zone", "stage", "foh", "stairs", "stage_access", "technical_area", "wheelchair_area"].includes(object.role)) return !layers.showNoSeatZones;
+  if (["no_seat_zone", "stairs", "stage_access", "technical_area", "wheelchair_area"].includes(object.role)) return !layers.showNoSeatZones;
   return false;
 }
 
@@ -434,9 +440,3 @@ function getGroupRect(group: TableGroup, tables: Table[]): Rect | null {
   return { x: minX - 500, y: minY - 500, width: maxX - minX + 1000, height: maxY - minY + 1000 };
 }
 
-function snap(value: number, disabled = false): number {
-  if (disabled) {
-    return Math.round(value);
-  }
-  return Math.round(value / 250) * 250;
-}

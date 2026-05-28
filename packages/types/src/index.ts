@@ -39,9 +39,13 @@ export type ObjectRole =
 
 export interface DrawingObject {
   id: string;
+  type?: Geometry["kind"];
   role: ObjectRole;
   name: string;
   geometry: Geometry;
+  rotationDeg?: Millimeters;
+  locked?: boolean;
+  visible?: boolean;
   note?: string;
   safetyDistanceMm?: Millimeters;
   properties?: Record<string, unknown>;
@@ -91,25 +95,41 @@ export interface SeatingBlock {
   seatCount: number;
 }
 
-export type TableType = "round" | "rectangular" | "banquet" | "classroom" | "boardroom" | "u_shape";
-export type TableLayoutType = "grid" | "banquet" | "parliamentary" | "boardroom" | "u_shape" | "mixed";
+export type TableType =
+  | "round"
+  | "rectangle"
+  | "banquet"
+  | "parliamentary"
+  | "block"
+  | "u_shape"
+  | "custom"
+  | "rectangular"
+  | "classroom"
+  | "boardroom";
+export type TableLayoutType = "grid" | "banquet" | "parliamentary" | "block" | "boardroom" | "u_shape" | "mixed" | "custom";
 
 export interface Table {
   id: string;
   type: TableType;
   name: string;
+  x?: Millimeters;
+  y?: Millimeters;
   position: Point;
   widthMm: Millimeters;
   depthMm: Millimeters;
   diameterMm?: Millimeters;
   rotationDeg: number;
+  seatCount?: number;
   seats: number;
   groupId?: string;
+  properties?: Record<string, unknown>;
 }
 
 export interface TableSeat {
   id: string;
   tableId: string;
+  x?: Millimeters;
+  y?: Millimeters;
   position: Point;
   widthMm: Millimeters;
   depthMm: Millimeters;
@@ -121,6 +141,9 @@ export interface TableGroup {
   name: string;
   layoutType: TableLayoutType;
   tableIds: string[];
+  tables?: Table[];
+  seats?: TableSeat[];
+  properties?: Record<string, unknown>;
 }
 
 export interface RuleProfile {
@@ -143,7 +166,10 @@ export interface ValidationMessage {
   id: string;
   severity: ValidationSeverity;
   objectId?: string;
+  objectName?: string;
+  code?: string;
   message: string;
+  details?: Record<string, unknown>;
 }
 
 export interface ValidationResult {
@@ -172,6 +198,7 @@ export interface Plan {
   projectId: string;
   name: string;
   status: "Entwurf" | "In Prüfung" | "Freigegeben";
+  version: number;
   room: Room;
   objects: DrawingObject[];
   seatingBlocks: SeatingBlock[];
@@ -180,8 +207,19 @@ export interface Plan {
   tables: Table[];
   tableSeats: TableSeat[];
   ruleProfile: RuleProfile;
+  validationResults?: ValidationResult;
   validationResult?: ValidationResult;
+  metadata: PlanMetadata;
   updatedAtIso: string;
+}
+
+export interface PlanMetadata {
+  projectName?: string;
+  createdAtIso?: string;
+  savedAtIso?: string;
+  localDraftAtIso?: string;
+  notes?: string;
+  [key: string]: unknown;
 }
 
 export interface PlanVersion {
@@ -212,13 +250,19 @@ export type ToolType =
   | "add_seating_block"
   | "add_table"
   | "add_table_group"
+  | "generate_table_layout"
   | "delete_object"
   | "recalculate_seating"
   | "export_pdf";
 
+export type SelectedObjectType = "room" | "object" | "table" | "table_group";
+export type SaveStatus = "idle" | "saving" | "saved" | "error";
+export type ExportStatus = "idle" | "exporting" | "exported" | "error";
+
 export interface EditorState {
   currentPlan: Plan;
   selectedObjectId?: string;
+  selectedObjectType?: SelectedObjectType;
   activeTool: ToolType;
   validationResults: ValidationResult;
   showChairs: boolean;
@@ -230,7 +274,15 @@ export interface EditorState {
   showValidation: boolean;
   dirtyState: boolean;
   zoom: number;
+  panOffset: Point;
+  gridSizeMm: number;
+  snapToGrid: boolean;
+  isDragging: boolean;
+  isResizing: boolean;
+  lastCalculationAt?: string;
   lastCalculationIso?: string;
+  exportStatus: ExportStatus;
+  saveStatus: SaveStatus;
   notice?: string;
   undoStack: EditorHistoryEntry[];
   redoStack: EditorHistoryEntry[];
@@ -239,11 +291,13 @@ export interface EditorState {
 export interface EditorHistoryEntry {
   plan: Plan;
   selectedObjectId?: string;
+  selectedObjectType?: SelectedObjectType;
 }
 
 export type PlanAction =
   | { type: "SET_PLAN"; plan: Plan }
-  | { type: "SELECT_OBJECT"; objectId?: string }
+  | { type: "SELECT_OBJECT"; objectId: string; objectType?: SelectedObjectType }
+  | { type: "CLEAR_SELECTION" }
   | { type: "SET_ACTIVE_TOOL"; tool: ToolType }
   | { type: "UPDATE_ROOM"; room: Room }
   | { type: "ADD_OBJECT"; object: DrawingObject }
@@ -260,6 +314,13 @@ export type PlanAction =
   | { type: "SET_DIRTY"; dirty: boolean }
   | { type: "TOGGLE_LAYER"; layer: "showChairs" | "showTables" | "showEscapeRoutes" | "showNoSeatZones" | "showGrid" | "showMeasurements" | "showValidation"; value?: boolean }
   | { type: "SET_ZOOM"; zoom: number }
+  | { type: "SET_PAN"; panOffset: Point }
+  | { type: "SET_SNAP_TO_GRID"; snapToGrid: boolean }
+  | { type: "SET_GRID_SIZE"; gridSizeMm: number }
+  | { type: "SET_SAVE_STATUS"; saveStatus: SaveStatus }
+  | { type: "SET_EXPORT_STATUS"; exportStatus: ExportStatus }
+  | { type: "SET_LAST_CALCULATION_AT"; lastCalculationAt: string }
+  | { type: "SET_INTERACTION_FLAGS"; isDragging?: boolean; isResizing?: boolean }
   | { type: "UNDO" }
   | { type: "REDO" };
 

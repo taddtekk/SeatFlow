@@ -15,12 +15,14 @@ const objectRoleOptions: ObjectRole[] = [
   "stairs",
   "stage_access",
   "technical_area",
+  "table",
+  "table_group",
   "seating_block",
   "wheelchair_area",
   "note"
 ];
 
-const tableTypeOptions: TableType[] = ["round", "rectangular", "banquet", "classroom", "boardroom", "u_shape"];
+const tableTypeOptions: TableType[] = ["round", "rectangle", "banquet", "parliamentary", "block", "u_shape", "custom"];
 
 export function PropertiesPanel({
   onDelete,
@@ -76,6 +78,7 @@ function ObjectProperties({
 }) {
   const rect = objectToRect(object);
   const heightMm = getNumberProperty(object, "heightMm", 0);
+  const minimum = getMinimumSize(object.role);
   return (
     <>
       <SelectedCard id={object.id} title={object.name} />
@@ -84,9 +87,15 @@ function ObjectProperties({
         <PropertyField label="Name" value={object.name} onChange={(value) => onUpdateObject(object.id, { name: value })} />
         <PropertyField label="Position X (mm)" type="number" value={String(Math.round(rect.x))} onChange={(value) => onUpdateRect(object.id, { ...rect, x: toNumber(value, rect.x) })} />
         <PropertyField label="Position Y (mm)" type="number" value={String(Math.round(rect.y))} onChange={(value) => onUpdateRect(object.id, { ...rect, y: toNumber(value, rect.y) })} />
-        <PropertyField label="Breite (mm)" type="number" value={String(Math.round(rect.width))} onChange={(value) => onUpdateRect(object.id, { ...rect, width: Math.max(100, toNumber(value, rect.width)) })} />
-        <PropertyField label="Tiefe (mm)" type="number" value={String(Math.round(rect.height))} onChange={(value) => onUpdateRect(object.id, { ...rect, height: Math.max(100, toNumber(value, rect.height)) })} />
-        <PropertyField label="Rotation" type="select" value={`${object.geometry.rotationDeg ?? 0}°`} options={["0°", "90°", "180°", "270°"]} />
+        <PropertyField label="Breite (mm)" type="number" value={String(Math.round(rect.width))} onChange={(value) => onUpdateRect(object.id, { ...rect, width: Math.max(minimum.width, toNumber(value, rect.width)) })} />
+        <PropertyField label="Tiefe (mm)" type="number" value={String(Math.round(rect.height))} onChange={(value) => onUpdateRect(object.id, { ...rect, height: Math.max(minimum.height, toNumber(value, rect.height)) })} />
+        <PropertyField
+          label="Rotation"
+          type="select"
+          value={`${object.rotationDeg ?? object.geometry.rotationDeg ?? 0}°`}
+          options={["0°", "90°", "180°", "270°"]}
+          onChange={(value) => onUpdateObject(object.id, { rotationDeg: parseRotation(value), geometry: { ...object.geometry, rotationDeg: parseRotation(value) } })}
+        />
         <PropertyField
           label="Höhe (mm)"
           type="number"
@@ -108,9 +117,11 @@ function ObjectProperties({
         </div>
         <PropertyField label="Notiz" value={object.note ?? ""} onChange={(value) => onUpdateObject(object.id, { note: value })} />
       </section>
-      <Button className="delete-object-button" icon={<Trash2 size={16} />} onClick={() => onDelete(object.id)} variant="danger">
-        Objekt löschen
-      </Button>
+      {object.role !== "room" ? (
+        <Button className="delete-object-button" icon={<Trash2 size={16} />} onClick={() => onDelete(object.id)} variant="danger">
+          Objekt löschen
+        </Button>
+      ) : null}
     </>
   );
 }
@@ -125,18 +136,19 @@ function TableProperties({
   table: Table;
 }) {
   const rect = tableToRect(table);
+  const seatCount = table.seatCount ?? table.seats;
   return (
     <>
       <SelectedCard id={table.id} title={table.name} />
       <div className="property-grid">
         <PropertyField label="Tischtyp" type="select" value={table.type} options={tableTypeOptions} onChange={(value) => onUpdateTable(table.id, { type: value as TableType })} />
         <PropertyField label="Name" value={table.name} onChange={(value) => onUpdateTable(table.id, { name: value })} />
-        <PropertyField label="Position X (mm)" type="number" value={String(Math.round(table.position.x))} onChange={(value) => onUpdateTable(table.id, { position: { ...table.position, x: toNumber(value, table.position.x) } })} />
-        <PropertyField label="Position Y (mm)" type="number" value={String(Math.round(table.position.y))} onChange={(value) => onUpdateTable(table.id, { position: { ...table.position, y: toNumber(value, table.position.y) } })} />
+        <PropertyField label="Position X (mm)" type="number" value={String(Math.round(table.x ?? table.position.x))} onChange={(value) => onUpdateTable(table.id, { x: toNumber(value, table.x ?? table.position.x), position: { ...table.position, x: toNumber(value, table.x ?? table.position.x) } })} />
+        <PropertyField label="Position Y (mm)" type="number" value={String(Math.round(table.y ?? table.position.y))} onChange={(value) => onUpdateTable(table.id, { y: toNumber(value, table.y ?? table.position.y), position: { ...table.position, y: toNumber(value, table.y ?? table.position.y) } })} />
         <PropertyField label={table.type === "round" ? "Durchmesser (mm)" : "Breite (mm)"} type="number" value={String(Math.round(rect.width))} onChange={(value) => onUpdateTable(table.id, table.type === "round" ? { diameterMm: toNumber(value, rect.width), widthMm: toNumber(value, rect.width), depthMm: toNumber(value, rect.width) } : { widthMm: toNumber(value, rect.width) })} />
         <PropertyField label="Tiefe (mm)" type="number" value={String(Math.round(rect.height))} onChange={(value) => onUpdateTable(table.id, { depthMm: toNumber(value, rect.height) })} />
-        <PropertyField label="Sitzplätze" type="number" value={String(table.seats)} onChange={(value) => onUpdateTable(table.id, { seats: toNumber(value, table.seats) })} />
-        <PropertyField label="Rotation" type="select" value={`${table.rotationDeg}°`} options={["0°", "90°", "180°", "270°"]} />
+        <PropertyField label="Sitzplätze" type="number" value={String(seatCount)} onChange={(value) => onUpdateTable(table.id, { seatCount: toNumber(value, seatCount), seats: toNumber(value, seatCount) })} />
+        <PropertyField label="Rotation" type="select" value={`${table.rotationDeg}°`} options={["0°", "90°", "180°", "270°"]} onChange={(value) => onUpdateTable(table.id, { rotationDeg: parseRotation(value) })} />
       </div>
       <section className="additional-properties">
         <h3>Abstände</h3>
@@ -188,6 +200,18 @@ function SelectedCard({ id, title }: { id: string; title: string }) {
 function getNumberProperty(object: DrawingObject, key: string, fallback: number): number {
   const value = object.properties?.[key];
   return typeof value === "number" ? value : fallback;
+}
+
+function getMinimumSize(role: ObjectRole): { width: number; height: number } {
+  if (role === "stage" || role === "foh") return { width: 1000, height: 1000 };
+  if (role === "escape_route" || role === "no_seat_zone" || role === "stairs" || role === "stage_access" || role === "technical_area" || role === "wheelchair_area") return { width: 500, height: 500 };
+  if (role === "exit") return { width: 300, height: 300 };
+  if (role === "seating_block") return { width: 1000, height: 1000 };
+  return { width: 100, height: 100 };
+}
+
+function parseRotation(value: string): number {
+  return toNumber(value.replace("°", ""), 0);
 }
 
 function toNumber(value: string, fallback: number): number {

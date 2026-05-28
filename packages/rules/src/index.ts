@@ -7,53 +7,55 @@ import {
   rectsOverlap,
   tableToRect
 } from "@seatflow/geometry";
-import type { DrawingObject, Plan, RuleProfile, ValidationMessage, ValidationResult } from "@seatflow/types";
+import type { DrawingObject, Plan, Rect, RuleProfile, ValidationMessage, ValidationResult } from "@seatflow/types";
 
 export function validatePlan(plan: Plan, ruleProfile: RuleProfile = plan.ruleProfile): ValidationResult {
   const messages: ValidationMessage[] = [];
   const roomRect = objectToRect(plan.room);
-  const forbidden = plan.objects.filter((object) =>
-    ["stage", "foh", "escape_route", "no_seat_zone", "stairs", "stage_access", "technical_area", "wheelchair_area"].includes(object.role)
-  );
+  const stageFohAndZones = plan.objects.filter((object) => ["stage", "foh", "no_seat_zone", "stairs", "stage_access", "technical_area", "wheelchair_area"].includes(object.role));
+  const forbidden = plan.objects.filter((object) => ["stage", "foh", "escape_route", "no_seat_zone", "stairs", "stage_access", "technical_area", "wheelchair_area"].includes(object.role));
   const escapeRoutes = plan.objects.filter((object) => object.role === "escape_route");
-  const noSeatZones = plan.objects.filter((object) =>
-    ["stage", "foh", "no_seat_zone", "stairs", "stage_access", "technical_area", "wheelchair_area"].includes(object.role)
-  );
+  const exits = plan.objects.filter((object) => object.role === "exit");
 
   for (const object of plan.objects) {
     const rect = objectToRect(object);
     if (!rectInsideRect(rect, roomRect)) {
-      messages.push(error(`object-outside-${object.id}`, object.id, `${object.name} liegt außerhalb des Raums.`));
+      messages.push(error("OBJECT_OUTSIDE_ROOM", object, `${object.name} liegt außerhalb des Raums.`));
     }
   }
 
   for (const chair of plan.chairs) {
     const chairRect = chairToRect(chair);
     if (!rectInsideRect(chairRect, roomRect)) {
-      messages.push(error(`chair-outside-${chair.id}`, chair.id, `Stuhl ${chair.id} liegt außerhalb des Raums.`));
+      messages.push(entityError("CHAIR_OUTSIDE_ROOM", chair.id, `Stuhl ${chair.id}`, `Stuhl ${chair.id} liegt außerhalb des Raums.`));
     }
-    for (const area of noSeatZones) {
+    for (const area of stageFohAndZones) {
       if (rectsOverlap(chairRect, objectToRect(area))) {
-        messages.push(error(`chair-area-${chair.id}-${area.id}`, chair.id, `Stuhl ${chair.id} überschneidet ${area.name}.`));
+        messages.push(entityError("CHAIR_OVERLAPS_FORBIDDEN_AREA", chair.id, `Stuhl ${chair.id}`, `Stuhl ${chair.id} überschneidet ${area.name}.`, { areaId: area.id }));
       }
     }
     for (const route of escapeRoutes) {
       if (rectsOverlap(chairRect, objectToRect(route))) {
-        messages.push(error(`chair-route-${chair.id}-${route.id}`, chair.id, `Stuhl ${chair.id} überschneidet einen Fluchtweg.`));
+        messages.push(entityError("CHAIR_OVERLAPS_ESCAPE_ROUTE", chair.id, `Stuhl ${chair.id}`, `Stuhl ${chair.id} überschneidet einen Fluchtweg.`, { routeId: route.id }));
+      }
+    }
+    for (const table of plan.tables) {
+      if (rectsOverlap(chairRect, tableToRect(table))) {
+        messages.push(entityError("CHAIR_OVERLAPS_TABLE", chair.id, `Stuhl ${chair.id}`, `Stuhl ${chair.id} überschneidet ${table.name}.`, { tableId: table.id }));
       }
     }
     if (chair.widthMm < ruleProfile.minSeatWidthMm) {
-      messages.push(warning(`chair-width-${chair.id}`, chair.id, `Stuhl ${chair.id} ist schmaler als ${ruleProfile.minSeatWidthMm} mm.`));
+      messages.push(entityWarning("CHAIR_TOO_NARROW", chair.id, `Stuhl ${chair.id}`, `Stuhl ${chair.id} ist schmaler als ${ruleProfile.minSeatWidthMm} mm.`));
     }
   }
 
   for (const table of plan.tables) {
     const tableRect = tableToRect(table);
     if (!rectInsideRect(tableRect, roomRect)) {
-      messages.push(error(`table-outside-${table.id}`, table.id, `${table.name} liegt außerhalb des Raums.`));
+      messages.push(entityError("TABLE_OUTSIDE_ROOM", table.id, table.name, `${table.name} liegt außerhalb des Raums.`));
     }
     if (objectOverlapsForbiddenArea(tableRect, forbidden, ruleProfile.minTableToEscapeRouteDistanceMm)) {
-      messages.push(error(`table-forbidden-${table.id}`, table.id, `${table.name} überschneidet eine Sperrfläche oder einen Fluchtweg.`));
+      messages.push(entityError("TABLE_OVERLAPS_FORBIDDEN_AREA", table.id, table.name, `${table.name} überschneidet eine Sperrfläche oder einen Fluchtweg.`));
     }
   }
 
@@ -65,7 +67,7 @@ export function validatePlan(plan: Plan, ruleProfile: RuleProfile = plan.rulePro
         continue;
       }
       if (distanceBetweenRects(tableToRect(a), tableToRect(b)) < ruleProfile.minTableDistanceMm) {
-        messages.push(warning(`table-distance-${a.id}-${b.id}`, a.id, `${a.name} und ${b.name} stehen näher als ${ruleProfile.minTableDistanceMm} mm zusammen.`));
+        messages.push(entityWarning("TABLE_DISTANCE_TOO_SMALL", a.id, a.name, `${a.name} und ${b.name} stehen näher als ${ruleProfile.minTableDistanceMm} mm zusammen.`, { otherTableId: b.id }));
       }
     }
   }
@@ -74,7 +76,20 @@ export function validatePlan(plan: Plan, ruleProfile: RuleProfile = plan.rulePro
     const routeRect = objectToRect(route);
     const width = Math.min(routeRect.width, routeRect.height);
     if (width < ruleProfile.minAisleWidthMm) {
-      messages.push(error(`route-width-${route.id}`, route.id, `${route.name} ist schmaler als ${ruleProfile.minAisleWidthMm} mm.`));
+      messages.push(error("ESCAPE_ROUTE_TOO_NARROW", route, `${route.name} ist schmaler als ${ruleProfile.minAisleWidthMm} mm.`));
+    }
+    if (isRouteBlocked(routeRect, plan, route.id)) {
+      messages.push(error("ESCAPE_ROUTE_BLOCKED", route, `${route.name} wird durch ein Objekt, einen Stuhl oder Tisch blockiert.`));
+    }
+  }
+
+  for (const exit of exits) {
+    const exitRect = objectToRect(exit);
+    if (!rectInsideRect(exitRect, roomRect)) {
+      messages.push(error("EXIT_OUTSIDE_ROOM", exit, `${exit.name} liegt außerhalb des Raums.`));
+    }
+    if (isExitBlocked(exitRect, plan, exit.id)) {
+      messages.push(error("EXIT_BLOCKED", exit, `${exit.name} wird durch ein Objekt, einen Stuhl oder Tisch blockiert.`));
     }
   }
 
@@ -84,10 +99,50 @@ export function validatePlan(plan: Plan, ruleProfile: RuleProfile = plan.rulePro
   };
 }
 
-function error(id: string, objectId: string, message: string): ValidationMessage {
-  return { id, objectId, severity: "error", message };
+function isRouteBlocked(routeRect: Rect, plan: Plan, routeId: string): boolean {
+  return (
+    plan.chairs.some((chair) => rectsOverlap(routeRect, chairToRect(chair))) ||
+    plan.tables.some((table) => rectsOverlap(routeRect, tableToRect(table))) ||
+    plan.objects.some((object) => object.id !== routeId && object.role !== "exit" && object.role !== "escape_route" && rectsOverlap(routeRect, objectToRect(object)))
+  );
 }
 
-function warning(id: string, objectId: string, message: string): ValidationMessage {
-  return { id, objectId, severity: "warning", message };
+function isExitBlocked(exitRect: Rect, plan: Plan, exitId: string): boolean {
+  return (
+    plan.chairs.some((chair) => rectsOverlap(exitRect, chairToRect(chair))) ||
+    plan.tables.some((table) => rectsOverlap(exitRect, tableToRect(table))) ||
+    plan.objects.some((object) => object.id !== exitId && object.role !== "escape_route" && rectsOverlap(exitRect, objectToRect(object)))
+  );
+}
+
+function error(code: string, object: DrawingObject, message: string, details?: Record<string, unknown>): ValidationMessage {
+  return entityMessage("error", code, object.id, object.name, message, details);
+}
+
+function entityError(code: string, objectId: string, objectName: string, message: string, details?: Record<string, unknown>): ValidationMessage {
+  return entityMessage("error", code, objectId, objectName, message, details);
+}
+
+function entityWarning(code: string, objectId: string, objectName: string, message: string, details?: Record<string, unknown>): ValidationMessage {
+  return entityMessage("warning", code, objectId, objectName, message, details);
+}
+
+function entityMessage(
+  severity: ValidationMessage["severity"],
+  code: string,
+  objectId: string,
+  objectName: string,
+  message: string,
+  details?: Record<string, unknown>
+): ValidationMessage {
+  const detailKey = details ? `-${Object.values(details).map(String).join("-")}` : "";
+  return {
+    id: `${code.toLowerCase()}-${objectId}${detailKey}`,
+    severity,
+    objectId,
+    objectName,
+    code,
+    message,
+    ...(details ? { details } : {})
+  };
 }

@@ -16,6 +16,15 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
 
   useEffect(() => {
     let active = true;
+    const localDraft = loadLocalDraft(initialPlan.id);
+    if (localDraft) {
+      dispatch({ type: "SET_PLAN", plan: localDraft });
+      dispatch({ type: "SET_DIRTY", dirty: true });
+      setNotice("Lokaler Entwurf wurde wiederhergestellt.");
+      return () => {
+        active = false;
+      };
+    }
     fetch("/api/demo-plan")
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error("Demo-Plan nicht erreichbar"))))
       .then((plan: Plan) => {
@@ -29,13 +38,35 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialPlan.id]);
+
+  useEffect(() => {
+    if (state.dirtyState) {
+      saveLocalDraft(state.currentPlan);
+    }
+  }, [state.currentPlan, state.dirtyState]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
+      if (isEditableTarget(event.target) && (event.key === "Delete" || event.key === "Backspace" || event.key === "Escape")) {
+        return;
+      }
       if ((event.key === "Delete" || event.key === "Backspace") && state.selectedObjectId) {
         event.preventDefault();
         dispatch({ type: "DELETE_OBJECT", objectId: state.selectedObjectId });
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        dispatch({ type: "CLEAR_SELECTION" });
+        dispatch({ type: "SET_ACTIVE_TOOL", tool: "select" });
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        void savePlan();
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "e") {
+        event.preventDefault();
+        void exportPdf();
       }
       const isUndo = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && !event.shiftKey;
       const isRedo = ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") || ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "z");
@@ -50,7 +81,7 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [state.selectedObjectId]);
+  }, [state.currentPlan, state.selectedObjectId]);
 
   useEffect(() => {
     if (!state.dirtyState) {
@@ -76,10 +107,22 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
     await runPlanRequest<Plan>("/api/generate-seating", "Bestuhlung wird neu berechnet...", (plan) => {
       dispatch({ type: "SET_PLAN", plan });
       dispatch({ type: "SET_DIRTY", dirty: true });
+      dispatch({ type: "SET_LAST_CALCULATION_AT", lastCalculationAt: new Date().toISOString() });
       if (plan.validationResult) {
         dispatch({ type: "SET_VALIDATION_RESULTS", validationResults: plan.validationResult });
       }
       setNotice("Bestuhlung wurde neu berechnet.");
+    });
+  }
+
+  async function generateTables() {
+    await runPlanRequest<Plan>("/api/generate-table-layout", "Tischlayout wird erzeugt...", (plan) => {
+      dispatch({ type: "SET_PLAN", plan });
+      dispatch({ type: "SET_DIRTY", dirty: true });
+      if (plan.validationResult) {
+        dispatch({ type: "SET_VALIDATION_RESULTS", validationResults: plan.validationResult });
+      }
+      setNotice("Tischlayout wurde erzeugt.");
     });
   }
 
@@ -93,12 +136,17 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
   }
 
   async function exportPdf() {
+    dispatch({ type: "SET_EXPORT_STATUS", exportStatus: "exporting" });
     await runPlanRequest<{ url: string }>("/api/export/pdf", "PDF-Export wird vorbereitet...", (result) => {
+      dispatch({ type: "SET_EXPORT_STATUS", exportStatus: "exported" });
       setNotice(`PDF exportiert: ${result.url}`);
+    }, {
+      onError: () => dispatch({ type: "SET_EXPORT_STATUS", exportStatus: "error" })
     });
   }
 
   async function savePlan() {
+    dispatch({ type: "SET_SAVE_STATUS", saveStatus: "saving" });
     setNotice("Plan wird gespeichert...");
     try {
       const response = await fetch(`/api/plans/${state.currentPlan.id}`, {
@@ -112,13 +160,16 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
       const plan = (await response.json()) as Plan;
       dispatch({ type: "SET_PLAN", plan });
       dispatch({ type: "SET_DIRTY", dirty: false });
+      dispatch({ type: "SET_SAVE_STATUS", saveStatus: "saved" });
+      clearLocalDraft(plan.id);
       setNotice("Plan wurde im InMemory-Repository gespeichert.");
     } catch {
+      dispatch({ type: "SET_SAVE_STATUS", saveStatus: "error" });
       setNotice("Plan konnte nicht gespeichert werden.");
     }
   }
 
-  async function runPlanRequest<T>(url: string, pendingMessage: string, onSuccess: (result: T) => void, options: { silent?: boolean } = {}) {
+  async function runPlanRequest<T>(url: string, pendingMessage: string, onSuccess: (result: T) => void, options: { silent?: boolean; onError?: () => void } = {}) {
     if (!options.silent) {
       setNotice(pendingMessage);
     }
@@ -133,6 +184,7 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
       }
       onSuccess((await response.json()) as T);
     } catch {
+      options.onError?.();
       if (!options.silent) {
         setNotice("Aktion konnte nicht abgeschlossen werden.");
       }
@@ -146,6 +198,10 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
     }
     if (tool === "export_pdf") {
       void exportPdf();
+      return;
+    }
+    if (tool === "generate_table_layout") {
+      void generateTables();
       return;
     }
     dispatch({ type: "SET_ACTIVE_TOOL", tool });
@@ -193,7 +249,7 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
     dispatch({ type: "UPDATE_OBJECT", objectId: id, changes: { geometry: updateObjectRect(object, rect).geometry } });
   }
 
-  const projectName = state.currentPlan.projectId === "project-demo" ? "Sommerkonzert 2026" : state.currentPlan.projectId;
+  const projectName = String(state.currentPlan.metadata.projectName ?? (state.currentPlan.projectId === "project-demo" ? "Sommerkonzert 2026" : state.currentPlan.projectId));
 
   return (
     <main className="seatflow-app">
@@ -214,6 +270,7 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
           activeTool={state.activeTool}
           layers={layers}
           onExportPdf={exportPdf}
+          onGenerateTables={generateTables}
           onRecalculate={recalculateSeating}
           onToggleLayer={(layer) => dispatch({ type: "TOGGLE_LAYER", layer })}
           onToolChange={handleToolChange}
@@ -221,9 +278,11 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
         <div className="workspace">
           <PlannerCanvas
             activeTool={state.activeTool}
+            gridSizeMm={state.gridSizeMm}
             layers={layers}
             onAddAtPoint={addAtPoint}
             onDelete={(id) => dispatch({ type: "DELETE_OBJECT", objectId: id })}
+            onInteractionChange={(flags) => dispatch({ type: "SET_INTERACTION_FLAGS", ...flags })}
             onMove={(id, dxMm, dyMm) => dispatch({ type: "MOVE_OBJECT", objectId: id, dxMm, dyMm })}
             onResize={(id, widthMm, heightMm) => {
               const action = {
@@ -234,20 +293,21 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
               };
               dispatch(action);
             }}
-            onSelect={(objectId) => dispatch(objectId ? { type: "SELECT_OBJECT", objectId } : { type: "SELECT_OBJECT" })}
+            onSelect={(objectId, objectType) => dispatch(objectId ? { type: "SELECT_OBJECT", objectId, ...(objectType ? { objectType } : {}) } : { type: "CLEAR_SELECTION" })}
             onZoomChange={(zoom) => dispatch({ type: "SET_ZOOM", zoom })}
             plan={state.currentPlan}
             selectedObjectId={state.selectedObjectId}
+            snapToGrid={state.snapToGrid}
             validationResults={state.validationResults}
             zoom={state.zoom}
           />
-          <StatusBar lastCalculationIso={state.lastCalculationIso} plan={state.currentPlan} zoom={state.zoom} />
+          <StatusBar gridSizeMm={state.gridSizeMm} lastCalculationIso={state.lastCalculationAt ?? state.lastCalculationIso} plan={state.currentPlan} saveStatus={state.saveStatus} zoom={state.zoom} />
           {notice ? <div className="toast-status">{notice}</div> : null}
         </div>
         <aside className="right-sidebar" aria-label="Eigenschaften und Validierung">
           <PropertiesPanel
             onDelete={(id) => dispatch({ type: "DELETE_OBJECT", objectId: id })}
-            onSelectNone={() => dispatch({ type: "SELECT_OBJECT" })}
+            onSelectNone={() => dispatch({ type: "CLEAR_SELECTION" })}
             onUpdateObject={updateObject}
             onUpdateObjectRect={updateObjectRectValue}
             onUpdateTable={(tableId, changes) => dispatch({ type: "UPDATE_TABLE", tableId, changes })}
@@ -276,8 +336,11 @@ function createObjectFromTool(tool: ToolType, point: Point): DrawingObject | nul
   }
   return {
     id: `${spec.role}-${Date.now()}`,
+    type: "rect",
     role: spec.role,
     name: spec.name,
+    rotationDeg: 0,
+    visible: true,
     geometry: { kind: "rect", rect: { x: point.x, y: point.y, width: spec.width, height: spec.height } }
   };
 }
@@ -287,11 +350,14 @@ function createTable(point: Point, index = Date.now()): Table {
     id: `table-${index}`,
     type: "round",
     name: "Runder Tisch",
+    x: point.x,
+    y: point.y,
     position: point,
     widthMm: 1800,
     depthMm: 1800,
     diameterMm: 1800,
     rotationDeg: 0,
+    seatCount: 8,
     seats: 8
   };
 }
@@ -303,25 +369,66 @@ function createTableGroup(point: Point): { tableGroup: TableGroup; tables: Table
     groupId,
     name: `Tischgruppe Tisch ${index + 1}`
   }));
+  const tableSeats = tables.flatMap(createTableSeats);
   return {
-    tableGroup: { id: groupId, name: "Tischgruppe", layoutType: "grid", tableIds: tables.map((table) => table.id) },
+    tableGroup: { id: groupId, name: "Tischgruppe", layoutType: "grid", tableIds: tables.map((table) => table.id), tables, seats: tableSeats },
     tables,
-    tableSeats: tables.flatMap(createTableSeats)
+    tableSeats
   };
 }
 
 function createTableSeats(table: Table): TableSeat[] {
-  const center = { x: table.position.x + table.widthMm / 2, y: table.position.y + table.depthMm / 2 };
+  const seatCount = table.seatCount ?? table.seats;
+  const tableX = table.x ?? table.position.x;
+  const tableY = table.y ?? table.position.y;
+  const center = { x: tableX + table.widthMm / 2, y: tableY + table.depthMm / 2 };
   const radius = (table.diameterMm ?? table.widthMm) / 2 + 320;
-  return Array.from({ length: table.seats }, (_, index) => {
-    const angle = (Math.PI * 2 * index) / table.seats;
+  return Array.from({ length: seatCount }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / seatCount;
+    const x = center.x + Math.cos(angle) * radius - 240;
+    const y = center.y + Math.sin(angle) * radius - 240;
     return {
       id: `${table.id}-seat-${index + 1}`,
       tableId: table.id,
-      position: { x: center.x + Math.cos(angle) * radius - 240, y: center.y + Math.sin(angle) * radius - 240 },
+      x,
+      y,
+      position: { x, y },
       widthMm: 480,
       depthMm: 480,
       rotationDeg: (angle * 180) / Math.PI
     };
   });
+}
+
+function localDraftKey(planId: string): string {
+  return `seatflow:planner:draft:${planId}`;
+}
+
+function loadLocalDraft(planId: string): Plan | null {
+  try {
+    const raw = window.localStorage.getItem(localDraftKey(planId));
+    return raw ? (JSON.parse(raw) as Plan) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveLocalDraft(plan: Plan) {
+  try {
+    window.localStorage.setItem(localDraftKey(plan.id), JSON.stringify({ ...plan, metadata: { ...plan.metadata, localDraftAtIso: new Date().toISOString() } }));
+  } catch {
+    // LocalStorage ist nur ein Komfort-Fallback; der API-Speicher bleibt fuehrend.
+  }
+}
+
+function clearLocalDraft(planId: string) {
+  try {
+    window.localStorage.removeItem(localDraftKey(planId));
+  } catch {
+    // Ignorieren, falls der Browser lokalen Speicher blockiert.
+  }
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || (target instanceof HTMLElement && target.isContentEditable);
 }

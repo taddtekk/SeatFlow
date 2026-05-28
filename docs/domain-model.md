@@ -8,7 +8,7 @@ In M1 sind alle bearbeitbaren Geometrien rechteckig. Polygone bleiben im Typmode
 
 Für Undo/Redo speichert der Editor kompakte History-Einträge mit Plan-Snapshot und Auswahl. Diese History ist nur clientseitig und wird nicht in der späteren Datenbank persistiert.
 
-Ein Plan besteht aus Raum, Zeichenobjekten, Bestuhlung, Tischen, Regelprofil und Validierungsergebnis.
+Ein Plan besteht aus Raum, Zeichenobjekten, Bestuhlung, Tischen, Tischsitzen, Tischgruppen, Regelprofil, Validierungsergebnis und Metadaten. `version` zählt die Planvariante, `metadata.projectName` enthält im Demo-Plan „Sommerkonzert 2026“.
 
 - Raum: maßstäbliche Grundfläche.
 - Bühne: belegte Fläche ohne Stühle.
@@ -23,21 +23,42 @@ Ein Plan besteht aus Raum, Zeichenobjekten, Bestuhlung, Tischen, Regelprofil und
 - Regelprofil: Mindestmaße und Grenzwerte.
 - Validierung: technische Hinweise, Warnungen und Fehler.
 
+## Rechteckige Geometrie
+
+Interaktive Geometrien sind aktuell Rechtecke:
+
+```json
+{ "kind": "rect", "rect": { "x": 3000, "y": 1000, "width": 8000, "height": 4000 } }
+```
+
+Alle Werte sind Millimeter. Polygone bleiben vorbereitet, werden aber noch nicht gezeichnet oder bearbeitet.
+
+## Objektrollen
+
+Unterstützte Rollen sind `room`, `stage`, `foh`, `escape_route`, `exit`, `no_seat_zone`, `stairs`, `stage_access`, `technical_area`, `chair`, `seating_block`, `table`, `table_group`, `wheelchair_area` und `note`.
+
+## Tische
+
+Tischtypen sind `round`, `rectangle`, `banquet`, `parliamentary`, `block`, `u_shape` und `custom`. Legacy-Aliasse aus fruehen MVP-Daten bleiben typseitig lesbar. Tabellen speichern Position kompatibel als `x`/`y` und `position`, die aktuelle Logik normalisiert beide Formen.
+
 ## Beispiel
 
 ```json
 {
   "id": "plan-demo",
-  "name": "Demo-Bestuhlungsplan",
+  "projectId": "project-demo",
+  "name": "Hauptbühne - Variante 3",
   "status": "Entwurf",
+  "version": 3,
   "room": {
     "id": "room-demo",
     "role": "room",
-    "name": "Beispielhalle",
-    "geometry": { "kind": "rect", "rect": { "x": 0, "y": 0, "width": 30000, "height": 20000 } }
+    "name": "Haupthalle",
+    "geometry": { "kind": "rect", "rect": { "x": 3000, "y": 1000, "width": 40000, "height": 32000 } }
   },
   "objects": [],
   "chairs": [],
-  "tables": []
+  "tables": [],
+  "metadata": { "projectName": "Sommerkonzert 2026" }
 }
 ```

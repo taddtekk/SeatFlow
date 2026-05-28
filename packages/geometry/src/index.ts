@@ -52,22 +52,45 @@ export function chairToRect(chair: Chair): Rect {
 }
 
 export function tableToRect(table: Table): Rect {
-  const width = table.diameterMm ?? table.widthMm;
-  const height = table.diameterMm ?? table.depthMm;
+  const width = table.type === "round" ? table.diameterMm ?? table.widthMm : table.widthMm;
+  const height = table.type === "round" ? table.diameterMm ?? table.depthMm : table.depthMm;
+  const position = getTablePosition(table);
   return {
-    x: table.position.x,
-    y: table.position.y,
+    x: position.x,
+    y: position.y,
     width,
     height
   };
 }
 
+export function getTablePosition(table: Table): Point {
+  return {
+    x: table.x ?? table.position.x,
+    y: table.y ?? table.position.y
+  };
+}
+
+export function isRectInsideRoom(rect: Rect, plan: Pick<Plan, "room">): boolean {
+  return rectInsideRect(rect, objectToRect(plan.room));
+}
+
 export function isChairInsideRoom(chair: Chair, plan: Pick<Plan, "room">): boolean {
-  return rectInsideRect(chairToRect(chair), objectToRect(plan.room));
+  return isRectInsideRoom(chairToRect(chair), plan);
+}
+
+export function isTableInsideRoom(table: Table, plan: Pick<Plan, "room">): boolean {
+  return isRectInsideRoom(tableToRect(table), plan);
 }
 
 export function objectOverlapsForbiddenArea(rect: Rect, forbiddenAreas: DrawingObject[], safetyDistanceMm = 0): boolean {
-  return forbiddenAreas.some((area) => rectsOverlap(rect, expandRect(objectToRect(area), safetyDistanceMm)));
+  return rectOverlapsAny(
+    rect,
+    forbiddenAreas.filter((area) => area.visible !== false).map((area) => expandRect(objectToRect(area), safetyDistanceMm))
+  );
+}
+
+export function rectOverlapsAny(rect: Rect, others: Rect[]): boolean {
+  return others.some((other) => rectsOverlap(rect, other));
 }
 
 export function mmToCanvasPx(valueMm: number, scale: number): number {
@@ -88,5 +111,19 @@ export function getRectCenter(rect: Rect): Point {
   return {
     x: rect.x + rect.width / 2,
     y: rect.y + rect.height / 2
+  };
+}
+
+export function snapValueToGrid(value: number, gridSizeMm: number): number {
+  if (gridSizeMm <= 0) {
+    return value;
+  }
+  return Math.round(value / gridSizeMm) * gridSizeMm;
+}
+
+export function snapPointToGrid(point: Point, gridSizeMm: number): Point {
+  return {
+    x: snapValueToGrid(point.x, gridSizeMm),
+    y: snapValueToGrid(point.y, gridSizeMm)
   };
 }

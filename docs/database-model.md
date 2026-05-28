@@ -26,5 +26,11 @@ Geometrien werden zunächst MariaDB-kompatibel als JSON gespeichert:
 
 - `geometry_json`
 - `properties_json`
+- `metadata_json`
+- `validation_json`
 
 `plan_versions.plan_json` speichert vollständige Plan-Snapshots. Das erleichtert Versionsvergleich und Wiederherstellung.
+
+## MVP-Speicherung
+
+Im aktuellen M1/M2-Schritt bleibt MariaDB vorbereitet, aber deaktiviert. `PUT /api/plans/:id` schreibt in das InMemory-Repository. Später kann daraus eine MariaDB-Implementierung entstehen, ohne Frontend, Generatoren oder Rules umzubauen.
