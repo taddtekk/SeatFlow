@@ -1,5 +1,11 @@
 # Domain-Modell
 
+## M1 Editor-State
+
+Der Editor-State ist eine UI-Schicht über dem Plan-Modell. Er speichert den aktuellen Plan, aktive Werkzeuge, Auswahl, Zoom, Layer-Sichtbarkeit, Dirty-State und Validierungsergebnisse. Der Plan bleibt die fachliche Quelle; Interaktionen schreiben Änderungen in `DrawingObject`, `Table`, `TableGroup`, `Chair` und `ValidationResult`.
+
+In M1 sind alle bearbeitbaren Geometrien rechteckig. Polygone bleiben im Typmodell vorbereitet, werden aber noch nicht interaktiv bearbeitet.
+
 Ein Plan besteht aus Raum, Zeichenobjekten, Bestuhlung, Tischen, Regelprofil und Validierungsergebnis.
 
 - Raum: maßstäbliche Grundfläche.

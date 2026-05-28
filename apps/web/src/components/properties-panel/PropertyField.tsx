@@ -1,9 +1,13 @@
 export function PropertyField({
   label,
+  onChange,
+  options,
   type = "text",
   value
 }: {
   label: string;
+  onChange?: (value: string) => void;
+  options?: string[];
   type?: "text" | "number" | "select";
   value: string;
 }) {
@@ -11,8 +15,10 @@ export function PropertyField({
     return (
       <label className="property-field">
         <span>{label}</span>
-        <select defaultValue={value}>
-          <option>{value}</option>
+        <select value={value} onChange={(event) => onChange?.(event.target.value)} disabled={!onChange}>
+          {(options ?? [value]).map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
         </select>
       </label>
     );
@@ -21,7 +27,7 @@ export function PropertyField({
   return (
     <label className="property-field">
       <span>{label}</span>
-      <input defaultValue={value} inputMode={type === "number" ? "numeric" : undefined} type="text" />
+      <input value={value} onChange={(event) => onChange?.(event.target.value)} readOnly={!onChange} inputMode={type === "number" ? "numeric" : undefined} type="text" />
     </label>
   );
 }

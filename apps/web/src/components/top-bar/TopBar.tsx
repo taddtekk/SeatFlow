@@ -3,11 +3,19 @@ import { Badge } from "../ui/Badge";
 import { Button, IconButton } from "../ui/Button";
 
 export function TopBar({
+  dirty,
   onExportPdf,
-  onRecalculate
+  onRecalculate,
+  onSave,
+  planName,
+  projectName
 }: {
+  dirty: boolean;
   onExportPdf: () => void;
   onRecalculate: () => void;
+  onSave: () => void;
+  planName: string;
+  projectName: string;
 }) {
   return (
     <header className="topbar">
@@ -23,15 +31,15 @@ export function TopBar({
       <nav className="planner-meta" aria-label="Plan-Kontext">
         <button className="meta-select" type="button">
           <span>Projekt:</span>
-          <strong>Sommerkonzert 2026</strong>
+          <strong>{projectName}</strong>
           <ChevronDown size={14} />
         </button>
         <button className="meta-select" type="button">
           <span>Plan:</span>
-          <strong>Hauptbühne - Variante 3</strong>
+          <strong>{planName}</strong>
           <ChevronDown size={14} />
         </button>
-        <Badge tone="info">Entwurf (nicht gespeichert)</Badge>
+        <Badge tone={dirty ? "info" : "success"}>{dirty ? "Entwurf (nicht gespeichert)" : "Gespeichert"}</Badge>
       </nav>
 
       <div className="topbar-actions">
@@ -40,7 +48,7 @@ export function TopBar({
         <Button icon={<RefreshCw size={17} />} onClick={onRecalculate} variant="primary">
           Bestuhlung neu berechnen
         </Button>
-        <Button icon={<Save size={16} />} variant="secondary" disabled>
+        <Button icon={<Save size={16} />} onClick={onSave} variant="secondary" disabled={!dirty}>
           Speichern
         </Button>
         <button className="user-chip" type="button" aria-label="Benutzer AD">

@@ -1,5 +1,11 @@
 # Architektur
 
+## M1 Editor-State
+
+Die Planungsseite verwendet einen zentralen `useReducer`-State mit `currentPlan`, `selectedObjectId`, `activeTool`, `validationResults`, `dirtyState`, `zoom`, Layer-Toggles und `lastCalculationIso`. Die Canvas rendert nicht mehr aus hart verdrahtetem JSX, sondern aus `room`, `objects`, `chairs`, `tables` und `tableGroups`.
+
+SVG Pointer Events steuern Auswahl, Drag & Drop und Resize-Handles. Unterstützt werden in M1 rechteckige Objekte und Tische. Freie Polygone, echte Mehrbenutzerbearbeitung und dauerhafte MariaDB-Persistenz folgen später.
+
 SeatFlow ist als npm-Workspace-Monorepo aufgebaut. Die Kernlogik liegt in browserunabhängigen Packages, damit Frontend, API und spätere Worker dieselben Regeln nutzen können.
 
 ## Systemaufbau

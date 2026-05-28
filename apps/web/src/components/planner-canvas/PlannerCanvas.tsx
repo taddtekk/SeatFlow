@@ -1,33 +1,157 @@
+"use client";
+
+import { chairToRect, objectToRect, tableToRect } from "@seatflow/geometry";
+import type { Chair, DrawingObject, Plan, Point, Rect, Table, ToolType, ValidationResult } from "@seatflow/types";
+import type { PointerEvent } from "react";
+import { useMemo, useRef } from "react";
 import { CanvasToolbar } from "./CanvasToolbar";
 import { Ruler } from "./Ruler";
 
-type Chair = { id: string; x: number; y: number };
-type Table = { id: string; x: number; y: number; round?: boolean };
+type LayerKey = "showChairs" | "showTables" | "showEscapeRoutes" | "showNoSeatZones" | "showGrid" | "showMeasurements" | "showValidation";
 
-const chairs = createChairBlocks();
-const tables: Table[] = [
-  { id: "t-1", x: 6700, y: 11800, round: true },
-  { id: "t-2", x: 8200, y: 11800, round: true },
-  { id: "t-3", x: 9700, y: 11800, round: true },
-  { id: "t-4", x: 25000, y: 11800, round: true },
-  { id: "t-5", x: 26500, y: 11800, round: true },
-  { id: "t-6", x: 28000, y: 11800, round: true },
-  { id: "t-7", x: 18800, y: 29700 },
-  { id: "t-8", x: 19800, y: 29700 },
-  { id: "t-9", x: 20800, y: 29700 },
-  { id: "t-10", x: 21800, y: 29700 },
-  { id: "t-11", x: 22800, y: 29700 },
-  { id: "t-12", x: 23800, y: 29700 }
-];
+interface PlannerCanvasProps {
+  activeTool: ToolType;
+  layers: Record<LayerKey, boolean>;
+  onAddAtPoint: (point: Point) => void;
+  onDelete: (id: string) => void;
+  onMove: (id: string, dxMm: number, dyMm: number) => void;
+  onResize: (id: string, widthMm?: number, heightMm?: number) => void;
+  onSelect: (id?: string) => void;
+  onZoomChange: (zoom: number) => void;
+  plan: Plan;
+  selectedObjectId?: string | undefined;
+  validationResults: ValidationResult;
+  zoom: number;
+}
 
-export function PlannerCanvas() {
+type DragMode = "move" | "resize-x" | "resize-y" | "resize-xy";
+
+interface DragState {
+  id: string;
+  mode: DragMode;
+  lastPoint: Point;
+  startPoint: Point;
+  startRect: Rect;
+}
+
+export function PlannerCanvas({
+  activeTool,
+  layers,
+  onAddAtPoint,
+  onDelete,
+  onMove,
+  onResize,
+  onSelect,
+  onZoomChange,
+  plan,
+  selectedObjectId,
+  validationResults,
+  zoom
+}: PlannerCanvasProps) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const dragRef = useRef<DragState | null>(null);
+  const roomRect = objectToRect(plan.room);
+  const viewBox = useMemo(() => {
+    const margin = 3000;
+    return {
+      x: Math.max(0, roomRect.x - margin),
+      y: Math.max(0, roomRect.y - margin),
+      width: roomRect.width + margin * 2,
+      height: roomRect.height + margin * 2
+    };
+  }, [roomRect.height, roomRect.width, roomRect.x, roomRect.y]);
+
+  function getSvgPoint(event: PointerEvent<SVGElement>): Point {
+    const svg = svgRef.current;
+    if (!svg) {
+      return { x: 0, y: 0 };
+    }
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const transformed = point.matrixTransform(svg.getScreenCTM()?.inverse());
+    return { x: snap(transformed.x), y: snap(transformed.y) };
+  }
+
+  function handleCanvasPointerDown(event: PointerEvent<SVGSVGElement>) {
+    const point = getSvgPoint(event);
+    if (isAddTool(activeTool)) {
+      onAddAtPoint(point);
+      return;
+    }
+    if (activeTool === "delete_object" && selectedObjectId) {
+      onDelete(selectedObjectId);
+      return;
+    }
+    onSelect(undefined);
+  }
+
+  function handleEntityPointerDown(event: PointerEvent<SVGGElement>, id: string, rect: Rect) {
+    event.stopPropagation();
+    if (activeTool === "delete_object") {
+      onDelete(id);
+      return;
+    }
+    if (activeTool !== "select") {
+      return;
+    }
+    const point = getSvgPoint(event);
+    onSelect(id);
+    dragRef.current = { id, mode: "move", lastPoint: point, startPoint: point, startRect: rect };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleHandlePointerDown(event: PointerEvent<SVGRectElement>, id: string, rect: Rect, mode: DragMode) {
+    event.stopPropagation();
+    const point = getSvgPoint(event);
+    onSelect(id);
+    dragRef.current = { id, mode, lastPoint: point, startPoint: point, startRect: rect };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handlePointerMove(event: PointerEvent<SVGSVGElement>) {
+    const drag = dragRef.current;
+    if (!drag) {
+      return;
+    }
+    const point = getSvgPoint(event);
+    if (drag.mode === "move") {
+      const dx = point.x - drag.lastPoint.x;
+      const dy = point.y - drag.lastPoint.y;
+      if (dx !== 0 || dy !== 0) {
+        onMove(drag.id, dx, dy);
+        dragRef.current = { ...drag, lastPoint: point };
+      }
+      return;
+    }
+
+    const width = drag.mode === "resize-x" || drag.mode === "resize-xy" ? Math.max(600, drag.startRect.width + point.x - drag.startPoint.x) : undefined;
+    const height = drag.mode === "resize-y" || drag.mode === "resize-xy" ? Math.max(600, drag.startRect.height + point.y - drag.startPoint.y) : undefined;
+    onResize(drag.id, width, height);
+  }
+
+  function stopDragging() {
+    dragRef.current = null;
+  }
+
   return (
     <section className="canvas-area" aria-label="Planfläche">
-      <CanvasToolbar />
+      <CanvasToolbar onZoomChange={onZoomChange} zoom={zoom} />
       <div className="canvas-frame">
-        <Ruler orientation="horizontal" />
-        <Ruler orientation="vertical" />
-        <svg className="seatflow-canvas" viewBox="0 0 42000 34000" role="img" aria-label="SeatFlow Demo-Plan">
+        {layers.showMeasurements ? <Ruler orientation="horizontal" /> : null}
+        {layers.showMeasurements ? <Ruler orientation="vertical" /> : null}
+        <svg
+          className="seatflow-canvas"
+          onPointerDown={handleCanvasPointerDown}
+          onPointerLeave={stopDragging}
+          onPointerMove={handlePointerMove}
+          onPointerUp={stopDragging}
+          ref={svgRef}
+          role="img"
+          style={{ transform: `scale(${zoom})`, transformOrigin: "top left" }}
+          viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
+          aria-label="SeatFlow Planfläche"
+        >
           <defs>
             <pattern id="sf-grid" width="1000" height="1000" patternUnits="userSpaceOnUse">
               <path d="M 1000 0 L 0 0 0 1000" fill="none" stroke="var(--sf-canvas-grid)" strokeWidth="34" />
@@ -43,198 +167,248 @@ export function PlannerCanvas() {
             </marker>
           </defs>
 
-          <rect className="canvas-bg" height="34000" width="42000" />
-          <rect fill="url(#sf-grid)" height="34000" width="42000" />
-          <rect fill="url(#sf-grid-strong)" height="34000" width="42000" />
+          <rect className="canvas-bg" height={viewBox.height} width={viewBox.width} x={viewBox.x} y={viewBox.y} />
+          {layers.showGrid ? <rect fill="url(#sf-grid)" height={viewBox.height} width={viewBox.width} x={viewBox.x} y={viewBox.y} /> : null}
+          {layers.showGrid ? <rect fill="url(#sf-grid-strong)" height={viewBox.height} width={viewBox.width} x={viewBox.x} y={viewBox.y} /> : null}
 
-          <rect className="room-outline" height="30000" width="36000" x="3000" y="1600" />
-          <WallBreaks />
-          <Exits />
+          <rect className="room-outline" height={roomRect.height} width={roomRect.width} x={roomRect.x} y={roomRect.y} />
+          {plan.objects.map((object) => (
+            <PlanObject
+              hidden={isObjectHidden(object, layers)}
+              key={object.id}
+              object={object}
+              onHandlePointerDown={handleHandlePointerDown}
+              onPointerDown={handleEntityPointerDown}
+              selected={selectedObjectId === object.id}
+            />
+          ))}
 
-          <NoSeatZone label="BÜHNENAUFGANG" x={7200} y={3200} width={3800} height={5200} />
-          <NoSeatZone label="BÜHNENAUFGANG" x={31000} y={3200} width={3800} height={5200} />
-          <NoSeatZone label="SPERRFLÄCHE&#10;5,00 m x 4,00 m" x={4200} y={26300} width={6400} height={5200} />
-          <NoSeatZone label="SPERRFLÄCHE&#10;4,00 m x 4,00 m" x={31000} y={26600} width={6400} height={4900} />
-
-          <EscapeRoute label="FLUCHTWEG NORD 2,00 m" x={4000} y={10300} width={34000} height={1350} />
-          <EscapeRoute label="FLUCHTWEG SÜD 1,80 m" warning x={4000} y={22500} width={34000} height={1250} />
-          <EscapeRoute label="FLUCHTWEG MITTE 2,50 m" vertical x={19300} y={10200} width={1500} height={16500} />
-
-          <g className="stage selected-object">
-            <rect height="6000" width="16000" x="12000" y="1000" />
-            <text x="20000" y="3850">BÜHNE</text>
-            <text className="subtext" x="20000" y="4950">16,00 m x 6,00 m</text>
-            <SelectionHandles x={12000} y={1000} width={16000} height={6000} />
-          </g>
-
-          <g className="foh">
-            <rect height="3000" width="6000" x="17600" y="27800" />
-            <text x="20600" y="29600">FOH</text>
-            <text className="subtext" x="20600" y="30650">6,00 m x 3,00 m</text>
-          </g>
-
-          <g className="chairs">
-            {chairs.map((chair) => (
-              <rect height="360" key={chair.id} rx="70" width="420" x={chair.x} y={chair.y} />
-            ))}
-          </g>
-
-          <g className="tables">
-            {tables.map((table) => (
-              <g key={table.id}>
-                {table.round ? (
-                  <circle cx={table.x + 420} cy={table.y + 420} r="420" />
-                ) : (
-                  <rect height="640" rx="70" width="840" x={table.x} y={table.y} />
-                )}
-                <TableSeats table={table} />
-              </g>
-            ))}
-          </g>
-
-          <g className="validation-markers">
-            <circle cx="38500" cy="23100" r="420" />
-            <text x="38500" y="23270">!</text>
-            <circle cx="10100" cy="23200" r="360" />
-            <text x="10100" y="23340">!</text>
-          </g>
+          {layers.showChairs ? <ChairLayer chairs={plan.chairs} /> : null}
+          {layers.showTables ? (
+            <TableLayer
+              onHandlePointerDown={handleHandlePointerDown}
+              onPointerDown={handleEntityPointerDown}
+              selectedObjectId={selectedObjectId}
+              tables={plan.tables}
+            />
+          ) : null}
+          {layers.showValidation ? <ValidationMarkers plan={plan} validationResults={validationResults} /> : null}
         </svg>
       </div>
     </section>
   );
 }
 
-function EscapeRoute({
-  label,
-  vertical = false,
-  warning = false,
-  width,
-  height,
-  x,
-  y
+function PlanObject({
+  hidden,
+  object,
+  onHandlePointerDown,
+  onPointerDown,
+  selected
 }: {
-  height: number;
-  label: string;
-  vertical?: boolean;
-  warning?: boolean;
-  width: number;
-  x: number;
-  y: number;
+  hidden: boolean;
+  object: DrawingObject;
+  onHandlePointerDown: (event: PointerEvent<SVGRectElement>, id: string, rect: Rect, mode: DragMode) => void;
+  onPointerDown: (event: PointerEvent<SVGGElement>, id: string, rect: Rect) => void;
+  selected: boolean;
+}) {
+  if (hidden || object.role === "room" || object.geometry.kind !== "rect") {
+    return null;
+  }
+  const rect = objectToRect(object);
+  const label = object.properties?.label ? String(object.properties.label) : formatLabel(object, rect);
+  const className = objectClassName(object.role, selected);
+  return (
+    <g className={className} onPointerDown={(event) => onPointerDown(event, object.id, rect)}>
+      <rect height={rect.height} width={rect.width} x={rect.x} y={rect.y} />
+      {object.role === "no_seat_zone" || object.role === "stage_access" ? <rect className="zone-hatch" fill="url(#sf-hatch)" height={rect.height} width={rect.width} x={rect.x} y={rect.y} /> : null}
+      {object.role === "escape_route" ? <EscapeRouteLabel object={object} rect={rect} /> : <ObjectLabel label={object.name} rect={rect} subLabel={label !== object.name ? label : undefined} />}
+      {selected ? <SelectionHandles id={object.id} onHandlePointerDown={onHandlePointerDown} rect={rect} /> : null}
+    </g>
+  );
+}
+
+function EscapeRouteLabel({ object, rect }: { object: DrawingObject; rect: Rect }) {
+  const vertical = object.properties?.direction === "vertical" || rect.height > rect.width;
+  const widthLabel = `${(Math.min(rect.width, rect.height) / 1000).toFixed(2).replace(".", ",")} m`;
+  if (vertical) {
+    return (
+      <>
+        <line markerEnd="url(#sf-arrow)" x1={rect.x + rect.width / 2} x2={rect.x + rect.width / 2} y1={rect.y + 1200} y2={rect.y + rect.height - 1200} />
+        <text transform={`translate(${rect.x + rect.width / 2 + 220} ${rect.y + rect.height / 2}) rotate(-90)`}>{`${object.name.toUpperCase()} ${widthLabel}`}</text>
+      </>
+    );
+  }
+  return (
+    <>
+      <line markerEnd="url(#sf-arrow)" x1={rect.x + 1800} x2={rect.x + rect.width - 1800} y1={rect.y + rect.height / 2} y2={rect.y + rect.height / 2} />
+      <text x={rect.x + rect.width / 2} y={rect.y + rect.height / 2 - 160}>{`${object.name.toUpperCase()} ${widthLabel}`}</text>
+    </>
+  );
+}
+
+function ChairLayer({ chairs }: { chairs: Chair[] }) {
+  return (
+    <g className="chairs">
+      {chairs.map((chair) => {
+        const rect = chairToRect(chair);
+        return <rect height={rect.height} key={chair.id} rx="70" width={rect.width} x={rect.x} y={rect.y} />;
+      })}
+    </g>
+  );
+}
+
+function TableLayer({
+  onHandlePointerDown,
+  onPointerDown,
+  selectedObjectId,
+  tables
+}: {
+  onHandlePointerDown: (event: PointerEvent<SVGRectElement>, id: string, rect: Rect, mode: DragMode) => void;
+  onPointerDown: (event: PointerEvent<SVGGElement>, id: string, rect: Rect) => void;
+  selectedObjectId?: string | undefined;
+  tables: Table[];
 }) {
   return (
-    <g className={`escape-route ${warning ? "is-warning" : ""}`}>
-      <rect height={height} width={width} x={x} y={y} />
-      {vertical ? (
-        <>
-          <line markerEnd="url(#sf-arrow)" x1={x + width / 2} x2={x + width / 2} y1={y + 1200} y2={y + height - 1200} />
-          <text transform={`translate(${x + width / 2 + 220} ${y + height / 2}) rotate(-90)`}>{label}</text>
-        </>
-      ) : (
-        <>
-          <line markerEnd="url(#sf-arrow)" x1={x + 1800} x2={x + width - 1800} y1={y + height / 2} y2={y + height / 2} />
-          <text x={x + width / 2} y={y + height / 2 - 160}>{label}</text>
-        </>
-      )}
-    </g>
-  );
-}
-
-function NoSeatZone({ label, height, width, x, y }: { height: number; label: string; width: number; x: number; y: number }) {
-  return (
-    <g className="no-seat-zone">
-      <rect height={height} width={width} x={x} y={y} />
-      <rect fill="url(#sf-hatch)" height={height} width={width} x={x} y={y} />
-      <text x={x + width / 2} y={y + height / 2}>{label}</text>
-    </g>
-  );
-}
-
-function Exits() {
-  const exits: Array<[number, number]> = [
-    [2400, 10600],
-    [38800, 10600],
-    [2400, 22400],
-    [38800, 22400],
-    [11200, 31600],
-    [28800, 31600]
-  ];
-  return (
-    <g className="exits">
-      {exits.map(([x, y]) => (
-        <g key={`${x}-${y}`}>
-          <rect height="1100" rx="120" width="850" x={x} y={y} />
-          <text x={x + 425} y={y + 720}>↗</text>
-        </g>
-      ))}
-    </g>
-  );
-}
-
-function WallBreaks() {
-  return (
-    <g className="wall-breaks">
-      <path d="M 10800 1600 h 1700 M 29500 1600 h 1700 M 10900 31600 q 1100 -1700 2200 0 M 28600 31600 q 1100 -1700 2200 0" />
-    </g>
-  );
-}
-
-function SelectionHandles({ height, width, x, y }: { height: number; width: number; x: number; y: number }) {
-  const points: Array<[number, number]> = [
-    [x, y],
-    [x + width / 2, y],
-    [x + width, y],
-    [x, y + height / 2],
-    [x + width, y + height / 2],
-    [x, y + height],
-    [x + width / 2, y + height],
-    [x + width, y + height]
-  ];
-  return (
-    <g className="selection-handles">
-      <rect fill="none" height={height} width={width} x={x} y={y} />
-      {points.map(([pointX, pointY]) => (
-        <rect height="300" key={`${pointX}-${pointY}`} width="300" x={pointX - 150} y={pointY - 150} />
-      ))}
+    <g className="tables">
+      {tables.map((table) => {
+        const rect = tableToRect(table);
+        const selected = selectedObjectId === table.id || selectedObjectId === table.groupId;
+        return (
+          <g key={table.id} onPointerDown={(event) => onPointerDown(event, table.id, rect)} className={selected ? "selected-table" : ""}>
+            {table.type === "round" ? (
+              <circle cx={rect.x + rect.width / 2} cy={rect.y + rect.height / 2} r={rect.width / 2} />
+            ) : (
+              <rect height={rect.height} rx="70" width={rect.width} x={rect.x} y={rect.y} />
+            )}
+            <TableSeats table={table} />
+            {selected ? <SelectionHandles id={table.id} onHandlePointerDown={onHandlePointerDown} rect={rect} /> : null}
+          </g>
+        );
+      })}
     </g>
   );
 }
 
 function TableSeats({ table }: { table: Table }) {
-  const cx = table.round ? table.x + 420 : table.x + 420;
-  const cy = table.round ? table.y + 420 : table.y + 320;
+  const rect = tableToRect(table);
+  const center = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
   const offsets: Array<[number, number]> = [
-    [-720, -120],
-    [720, -120],
-    [-720, 320],
-    [720, 320]
+    [-rect.width / 2 - 280, -140],
+    [rect.width / 2 - 20, -140],
+    [-rect.width / 2 - 280, rect.height - 120],
+    [rect.width / 2 - 20, rect.height - 120]
   ];
   return (
     <g className="table-seats">
       {offsets.map(([dx, dy]) => (
-        <rect height="260" key={`${table.id}-${dx}-${dy}`} rx="45" width="300" x={cx + dx} y={cy + dy} />
+        <rect height="260" key={`${table.id}-${dx}-${dy}`} rx="45" width="300" x={center.x + dx} y={rect.y + dy} />
       ))}
     </g>
   );
 }
 
-function createChairBlocks(): Chair[] {
-  const blocks = [
-    { id: "tl", x: 6200, y: 12000, columns: 17, rows: 8 },
-    { id: "tr", x: 25000, y: 12000, columns: 17, rows: 8 },
-    { id: "bl", x: 6200, y: 24000, columns: 14, rows: 7 },
-    { id: "br", x: 25000, y: 24000, columns: 16, rows: 7 }
+function ValidationMarkers({ plan, validationResults }: { plan: Plan; validationResults: ValidationResult }) {
+  const entities = [...plan.objects, ...plan.tables.map(tableAsObject)];
+  return (
+    <g className="validation-markers">
+      {validationResults.messages
+        .filter((message) => message.severity === "error" && message.objectId)
+        .slice(0, 12)
+        .map((message) => {
+          const entity = entities.find((item) => item.id === message.objectId);
+          if (!entity) {
+            return null;
+          }
+          const rect = objectToRect(entity);
+          return (
+            <g key={message.id}>
+              <circle cx={rect.x + rect.width} cy={rect.y + rect.height / 2} r="420" />
+              <text x={rect.x + rect.width} y={rect.y + rect.height / 2 + 170}>!</text>
+            </g>
+          );
+        })}
+    </g>
+  );
+}
+
+function SelectionHandles({
+  id,
+  onHandlePointerDown,
+  rect
+}: {
+  id: string;
+  onHandlePointerDown: (event: PointerEvent<SVGRectElement>, id: string, rect: Rect, mode: DragMode) => void;
+  rect: Rect;
+}) {
+  const handles: Array<{ mode: DragMode; x: number; y: number }> = [
+    { mode: "resize-x", x: rect.x + rect.width, y: rect.y + rect.height / 2 },
+    { mode: "resize-y", x: rect.x + rect.width / 2, y: rect.y + rect.height },
+    { mode: "resize-xy", x: rect.x + rect.width, y: rect.y + rect.height }
   ];
-  const result: Chair[] = [];
-  for (const block of blocks) {
-    for (let row = 0; row < block.rows; row += 1) {
-      for (let column = 0; column < block.columns; column += 1) {
-        result.push({
-          id: `${block.id}-${row}-${column}`,
-          x: block.x + column * 620,
-          y: block.y + row * 760
-        });
-      }
-    }
+  return (
+    <g className="selection-handles">
+      <rect fill="none" height={rect.height} width={rect.width} x={rect.x} y={rect.y} />
+      {handles.map((handle) => (
+        <rect
+          height="360"
+          key={handle.mode}
+          onPointerDown={(event) => onHandlePointerDown(event, id, rect, handle.mode)}
+          width="360"
+          x={handle.x - 180}
+          y={handle.y - 180}
+        />
+      ))}
+    </g>
+  );
+}
+
+function ObjectLabel({ label, rect, subLabel }: { label: string; rect: Rect; subLabel?: string | undefined }) {
+  return (
+    <>
+      <text x={rect.x + rect.width / 2} y={rect.y + rect.height / 2 - (subLabel ? 300 : 0)}>{label.toUpperCase()}</text>
+      {subLabel ? <text className="subtext" x={rect.x + rect.width / 2} y={rect.y + rect.height / 2 + 650}>{subLabel}</text> : null}
+    </>
+  );
+}
+
+function objectClassName(role: DrawingObject["role"], selected: boolean): string {
+  const classes = ["plan-object", `object-${role}`];
+  if (role === "stage") classes.push("stage");
+  if (role === "foh") classes.push("foh");
+  if (role === "escape_route") classes.push("escape-route");
+  if (role === "exit") classes.push("exits");
+  if (["no_seat_zone", "stage_access", "stairs", "technical_area", "wheelchair_area"].includes(role)) classes.push("no-seat-zone");
+  if (selected) classes.push("selected-object");
+  return classes.join(" ");
+}
+
+function formatLabel(object: DrawingObject, rect: Rect): string {
+  if (object.role === "stage" || object.role === "foh" || object.role === "no_seat_zone") {
+    return `${(rect.width / 1000).toFixed(2).replace(".", ",")} m x ${(rect.height / 1000).toFixed(2).replace(".", ",")} m`;
   }
-  return result;
+  return object.name;
+}
+
+function isObjectHidden(object: DrawingObject, layers: Record<LayerKey, boolean>): boolean {
+  if (object.role === "escape_route") return !layers.showEscapeRoutes;
+  if (["no_seat_zone", "stage", "foh", "stairs", "stage_access", "technical_area", "wheelchair_area"].includes(object.role)) return !layers.showNoSeatZones;
+  return false;
+}
+
+function tableAsObject(table: Table): DrawingObject {
+  return {
+    id: table.id,
+    role: "table",
+    name: table.name,
+    geometry: { kind: "rect", rect: tableToRect(table) }
+  };
+}
+
+function isAddTool(tool: ToolType): boolean {
+  return ["draw_room", "add_stage", "add_foh", "add_no_seat_zone", "add_escape_route", "add_exit", "add_seating_block", "add_table", "add_table_group"].includes(tool);
+}
+
+function snap(value: number): number {
+  return Math.round(value / 100) * 100;
 }

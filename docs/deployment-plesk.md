@@ -1,5 +1,9 @@
 # Deployment auf Plesk
 
+## M1 Build-Hinweis
+
+Auf Plesk sollte `AUTO_PUSH_AFTER_BUILD=false` gesetzt werden. Lokale Builds pushen automatisch nach GitHub, der Server-Build soll dagegen nur installieren und bauen. Speichern nutzt in M1 InMemory-Repositories und ist nach einem Server-Neustart nicht dauerhaft.
+
 ## Voraussetzung
 
 - Node.js `20.20.2`

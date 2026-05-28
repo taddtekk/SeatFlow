@@ -71,7 +71,8 @@ export function validatePlan(plan: Plan, ruleProfile: RuleProfile = plan.rulePro
   }
 
   for (const route of escapeRoutes) {
-    const width = objectToRect(route).width;
+    const routeRect = objectToRect(route);
+    const width = Math.min(routeRect.width, routeRect.height);
     if (width < ruleProfile.minAisleWidthMm) {
       messages.push(error(`route-width-${route.id}`, route.id, `${route.name} ist schmaler als ${ruleProfile.minAisleWidthMm} mm.`));
     }

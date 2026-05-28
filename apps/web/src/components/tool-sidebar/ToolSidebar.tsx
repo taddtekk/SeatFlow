@@ -40,24 +40,30 @@ const tools: Array<{ id: ToolType; icon: ReactNode; label: string }> = [
 ];
 
 const toggles = [
-  { icon: <Armchair size={15} />, label: "Stühle anzeigen" },
-  { icon: <Table2 size={15} />, label: "Tische anzeigen" },
-  { icon: <Route size={15} />, label: "Fluchtwege anzeigen" },
-  { icon: <Ban size={15} />, label: "Sperrflächen anzeigen" },
-  { icon: <Grid3X3 size={15} />, label: "Raster anzeigen" },
-  { icon: <Ruler size={15} />, label: "Maße anzeigen" },
-  { icon: <CheckSquare2 size={15} />, label: "Validierung anzeigen" }
+  { icon: <Armchair size={15} />, label: "Stühle anzeigen", layer: "showChairs" as const },
+  { icon: <Table2 size={15} />, label: "Tische anzeigen", layer: "showTables" as const },
+  { icon: <Route size={15} />, label: "Fluchtwege anzeigen", layer: "showEscapeRoutes" as const },
+  { icon: <Ban size={15} />, label: "Sperrflächen anzeigen", layer: "showNoSeatZones" as const },
+  { icon: <Grid3X3 size={15} />, label: "Raster anzeigen", layer: "showGrid" as const },
+  { icon: <Ruler size={15} />, label: "Maße anzeigen", layer: "showMeasurements" as const },
+  { icon: <CheckSquare2 size={15} />, label: "Validierung anzeigen", layer: "showValidation" as const }
 ];
+
+type LayerKey = (typeof toggles)[number]["layer"];
 
 export function ToolSidebar({
   activeTool,
+  layers,
   onExportPdf,
   onRecalculate,
+  onToggleLayer,
   onToolChange
 }: {
   activeTool: ToolType;
+  layers: Record<"showChairs" | "showTables" | "showEscapeRoutes" | "showNoSeatZones" | "showGrid" | "showMeasurements" | "showValidation", boolean>;
   onExportPdf: () => void;
   onRecalculate: () => void;
+  onToggleLayer: (layer: LayerKey) => void;
   onToolChange: (tool: ToolType) => void;
 }) {
   return (
@@ -81,7 +87,13 @@ export function ToolSidebar({
 
       <SidebarSection title="Anzeige">
         {toggles.map((toggle) => (
-          <DisplayToggle checked icon={toggle.icon} key={toggle.label} label={toggle.label} />
+          <DisplayToggle
+            checked={layers[toggle.layer]}
+            icon={toggle.icon}
+            key={toggle.label}
+            label={toggle.label}
+            onChange={() => onToggleLayer(toggle.layer)}
+          />
         ))}
       </SidebarSection>
 
@@ -97,6 +109,7 @@ export function ToolSidebar({
     </aside>
   );
 }
+
 
 function SidebarSection({ children, title }: { children: ReactNode; title: string }) {
   return (

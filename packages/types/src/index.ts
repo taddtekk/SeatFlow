@@ -217,18 +217,41 @@ export type ToolType =
   | "export_pdf";
 
 export interface EditorState {
-  plan: Plan;
+  currentPlan: Plan;
   selectedObjectId?: string;
   activeTool: ToolType;
+  validationResults: ValidationResult;
   showChairs: boolean;
   showTables: boolean;
   showEscapeRoutes: boolean;
   showNoSeatZones: boolean;
   showGrid: boolean;
-  showDimensions: boolean;
+  showMeasurements: boolean;
   showValidation: boolean;
-  dirty: boolean;
+  dirtyState: boolean;
+  zoom: number;
+  lastCalculationIso?: string;
+  notice?: string;
 }
+
+export type PlanAction =
+  | { type: "SET_PLAN"; plan: Plan }
+  | { type: "SELECT_OBJECT"; objectId?: string }
+  | { type: "SET_ACTIVE_TOOL"; tool: ToolType }
+  | { type: "ADD_OBJECT"; object: DrawingObject }
+  | { type: "ADD_TABLE"; table: Table; tableSeats: TableSeat[] }
+  | { type: "ADD_TABLE_GROUP"; tableGroup: TableGroup; tables: Table[]; tableSeats: TableSeat[] }
+  | { type: "UPDATE_OBJECT"; objectId: string; changes: Partial<DrawingObject> }
+  | { type: "UPDATE_TABLE"; tableId: string; changes: Partial<Table> }
+  | { type: "DELETE_OBJECT"; objectId: string }
+  | { type: "MOVE_OBJECT"; objectId: string; dxMm: number; dyMm: number }
+  | { type: "RESIZE_OBJECT"; objectId: string; widthMm?: number; heightMm?: number }
+  | { type: "SET_CHAIRS"; chairs: Chair[]; seatingBlocks: SeatingBlock[] }
+  | { type: "SET_TABLES"; tables: Table[]; tableGroups: TableGroup[]; tableSeats: TableSeat[] }
+  | { type: "SET_VALIDATION_RESULTS"; validationResults: ValidationResult }
+  | { type: "SET_DIRTY"; dirty: boolean }
+  | { type: "TOGGLE_LAYER"; layer: "showChairs" | "showTables" | "showEscapeRoutes" | "showNoSeatZones" | "showGrid" | "showMeasurements" | "showValidation"; value?: boolean }
+  | { type: "SET_ZOOM"; zoom: number };
 
 export interface DatabaseConfig {
   host?: string;
