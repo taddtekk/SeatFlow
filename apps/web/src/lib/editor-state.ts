@@ -1,6 +1,7 @@
-import type { DrawingObject, EditorState, Plan, PlanAction, Rect, Table, ValidationResult } from "@seatflow/types";
+import type { DrawingObject, EditorHistoryEntry, EditorState, Plan, PlanAction, Rect, Table, TableSeat, ValidationResult } from "@seatflow/types";
 
 const layerKeys = ["showChairs", "showTables", "showEscapeRoutes", "showNoSeatZones", "showGrid", "showMeasurements", "showValidation"] as const;
+const maxHistoryLength = 40;
 
 export function createInitialEditorState(plan: Plan): EditorState {
   const selectedObjectId = plan.objects.find((object) => object.role === "stage")?.id;
@@ -17,7 +18,9 @@ export function createInitialEditorState(plan: Plan): EditorState {
     showValidation: true,
     dirtyState: false,
     zoom: 1,
-    lastCalculationIso: plan.updatedAtIso
+    lastCalculationIso: plan.updatedAtIso,
+    undoStack: [],
+    redoStack: []
   };
   return selectedObjectId ? { ...state, selectedObjectId } : state;
 }
@@ -30,8 +33,14 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         currentPlan: action.plan,
         validationResults: action.plan.validationResult ?? state.validationResults,
         dirtyState: false,
-        lastCalculationIso: action.plan.updatedAtIso
+        lastCalculationIso: action.plan.updatedAtIso,
+        undoStack: [],
+        redoStack: []
       };
+    case "UNDO":
+      return undo(state);
+    case "REDO":
+      return redo(state);
     case "SELECT_OBJECT":
       if (action.objectId) {
         return { ...state, selectedObjectId: action.objectId };
@@ -42,8 +51,19 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         ...state,
         activeTool: action.tool
       };
+    case "UPDATE_ROOM":
+      return withHistory(state, {
+        ...state,
+        selectedObjectId: action.room.id,
+        activeTool: "select",
+        currentPlan: {
+          ...state.currentPlan,
+          room: action.room,
+          updatedAtIso: new Date().toISOString()
+        }
+      });
     case "ADD_OBJECT":
-      return markDirty({
+      return withHistory(state, {
         ...state,
         activeTool: "select",
         selectedObjectId: action.object.id,
@@ -54,7 +74,7 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         }
       });
     case "ADD_TABLE":
-      return markDirty({
+      return withHistory(state, {
         ...state,
         activeTool: "select",
         selectedObjectId: action.table.id,
@@ -66,7 +86,7 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         }
       });
     case "ADD_TABLE_GROUP":
-      return markDirty({
+      return withHistory(state, {
         ...state,
         activeTool: "select",
         selectedObjectId: action.tableGroup.id,
@@ -79,7 +99,7 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         }
       });
     case "UPDATE_OBJECT":
-      return markDirty({
+      return withHistory(state, {
         ...state,
         currentPlan: {
           ...state.currentPlan,
@@ -88,7 +108,7 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         }
       });
     case "UPDATE_TABLE":
-      return markDirty({
+      return withHistory(state, {
         ...state,
         currentPlan: {
           ...state.currentPlan,
@@ -97,13 +117,13 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         }
       });
     case "DELETE_OBJECT":
-      return markDirty(deleteEntity(state, action.objectId));
+      return withHistory(state, deleteEntity(state, action.objectId));
     case "MOVE_OBJECT":
-      return markDirty(moveEntity(state, action.objectId, action.dxMm, action.dyMm));
+      return withHistory(state, moveEntity(state, action.objectId, action.dxMm, action.dyMm));
     case "RESIZE_OBJECT":
-      return markDirty(resizeEntity(state, action.objectId, action.widthMm, action.heightMm));
+      return withHistory(state, resizeEntity(state, action.objectId, action.widthMm, action.heightMm));
     case "SET_CHAIRS":
-      return markDirty({
+      return withHistory(state, {
         ...state,
         currentPlan: {
           ...state.currentPlan,
@@ -114,7 +134,7 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         lastCalculationIso: new Date().toISOString()
       });
     case "SET_TABLES":
-      return markDirty({
+      return withHistory(state, {
         ...state,
         currentPlan: {
           ...state.currentPlan,
@@ -175,6 +195,50 @@ function markDirty(state: EditorState): EditorState {
   };
 }
 
+function withHistory(previous: EditorState, next: EditorState): EditorState {
+  return {
+    ...next,
+    dirtyState: true,
+    undoStack: [...previous.undoStack.slice(-(maxHistoryLength - 1)), createHistoryEntry(previous)],
+    redoStack: []
+  };
+}
+
+function undo(state: EditorState): EditorState {
+  const previous = state.undoStack.at(-1);
+  if (!previous) {
+    return state;
+  }
+  const nextUndoStack = state.undoStack.slice(0, -1);
+  return applyHistoryEntry(state, previous, nextUndoStack, [...state.redoStack, createHistoryEntry(state)]);
+}
+
+function redo(state: EditorState): EditorState {
+  const next = state.redoStack.at(-1);
+  if (!next) {
+    return state;
+  }
+  const nextRedoStack = state.redoStack.slice(0, -1);
+  return applyHistoryEntry(state, next, [...state.undoStack, createHistoryEntry(state)], nextRedoStack);
+}
+
+function createHistoryEntry(state: EditorState): EditorHistoryEntry {
+  const entry: EditorHistoryEntry = { plan: state.currentPlan };
+  return state.selectedObjectId ? { ...entry, selectedObjectId: state.selectedObjectId } : entry;
+}
+
+function applyHistoryEntry(state: EditorState, entry: EditorHistoryEntry, undoStack: EditorHistoryEntry[], redoStack: EditorHistoryEntry[]): EditorState {
+  const next: EditorState = {
+    ...state,
+    currentPlan: entry.plan,
+    validationResults: entry.plan.validationResult ?? state.validationResults,
+    dirtyState: true,
+    undoStack,
+    redoStack
+  };
+  return entry.selectedObjectId ? { ...next, selectedObjectId: entry.selectedObjectId } : withoutSelection(next);
+}
+
 function deleteEntity(state: EditorState, id: string): EditorState {
   const group = state.currentPlan.tableGroups.find((tableGroup) => tableGroup.id === id);
   const tableIdsToDelete = new Set(group ? group.tableIds : [id]);
@@ -217,6 +281,11 @@ function moveEntity(state: EditorState, id: string, dxMm: number, dyMm: number):
 }
 
 function resizeEntity(state: EditorState, id: string, widthMm?: number, heightMm?: number): EditorState {
+  const group = state.currentPlan.tableGroups.find((tableGroup) => tableGroup.id === id);
+  if (group) {
+    return resizeTableGroup(state, group.tableIds, widthMm, heightMm);
+  }
+
   return {
     ...state,
     currentPlan: {
@@ -232,6 +301,29 @@ function resizeEntity(state: EditorState, id: string, widthMm?: number, heightMm
             }
           : table
       ),
+      updatedAtIso: new Date().toISOString()
+    }
+  };
+}
+
+function resizeTableGroup(state: EditorState, tableIds: string[], widthMm?: number, heightMm?: number): EditorState {
+  const tableIdSet = new Set(tableIds);
+  const groupTables = state.currentPlan.tables.filter((table) => tableIdSet.has(table.id));
+  const groupRect = getGroupRect(groupTables);
+  if (!groupRect) {
+    return state;
+  }
+  const nextWidth = widthMm ?? groupRect.width;
+  const nextHeight = heightMm ?? groupRect.height;
+  const scaleX = nextWidth / groupRect.width;
+  const scaleY = nextHeight / groupRect.height;
+
+  return {
+    ...state,
+    currentPlan: {
+      ...state.currentPlan,
+      tables: state.currentPlan.tables.map((table) => (tableIdSet.has(table.id) ? scaleTable(table, groupRect, scaleX, scaleY) : table)),
+      tableSeats: state.currentPlan.tableSeats.map((seat) => (tableIdSet.has(seat.tableId) ? scaleSeat(seat, groupRect, scaleX, scaleY) : seat)),
       updatedAtIso: new Date().toISOString()
     }
   };
@@ -278,6 +370,52 @@ function moveTable(table: Table, dxMm: number, dyMm: number): Table {
       x: table.position.x + dxMm,
       y: table.position.y + dyMm
     }
+  };
+}
+
+function scaleTable(table: Table, origin: Rect, scaleX: number, scaleY: number): Table {
+  const widthMm = Math.max(600, table.widthMm * scaleX);
+  const depthMm = Math.max(600, table.depthMm * scaleY);
+  return {
+    ...table,
+    position: {
+      x: origin.x + (table.position.x - origin.x) * scaleX,
+      y: origin.y + (table.position.y - origin.y) * scaleY
+    },
+    widthMm,
+    depthMm,
+    ...(table.type === "round" ? { diameterMm: Math.max(widthMm, depthMm) } : {})
+  };
+}
+
+function scaleSeat(seat: TableSeat, origin: Rect, scaleX: number, scaleY: number): TableSeat {
+  return {
+    ...seat,
+    position: {
+      x: origin.x + (seat.position.x - origin.x) * scaleX,
+      y: origin.y + (seat.position.y - origin.y) * scaleY
+    }
+  };
+}
+
+function getGroupRect(tables: Table[]): Rect | null {
+  if (tables.length === 0) {
+    return null;
+  }
+  const rects = tables.map(tableToRect);
+  const minX = Math.min(...rects.map((rect) => rect.x));
+  const minY = Math.min(...rects.map((rect) => rect.y));
+  const maxX = Math.max(...rects.map((rect) => rect.x + rect.width));
+  const maxY = Math.max(...rects.map((rect) => rect.y + rect.height));
+  return { x: minX - 500, y: minY - 500, width: maxX - minX + 1000, height: maxY - minY + 1000 };
+}
+
+function tableToRect(table: Table): Rect {
+  return {
+    x: table.position.x,
+    y: table.position.y,
+    width: table.diameterMm ?? table.widthMm,
+    height: table.diameterMm ?? table.depthMm
   };
 }
 

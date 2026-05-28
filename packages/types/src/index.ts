@@ -232,12 +232,20 @@ export interface EditorState {
   zoom: number;
   lastCalculationIso?: string;
   notice?: string;
+  undoStack: EditorHistoryEntry[];
+  redoStack: EditorHistoryEntry[];
+}
+
+export interface EditorHistoryEntry {
+  plan: Plan;
+  selectedObjectId?: string;
 }
 
 export type PlanAction =
   | { type: "SET_PLAN"; plan: Plan }
   | { type: "SELECT_OBJECT"; objectId?: string }
   | { type: "SET_ACTIVE_TOOL"; tool: ToolType }
+  | { type: "UPDATE_ROOM"; room: Room }
   | { type: "ADD_OBJECT"; object: DrawingObject }
   | { type: "ADD_TABLE"; table: Table; tableSeats: TableSeat[] }
   | { type: "ADD_TABLE_GROUP"; tableGroup: TableGroup; tables: Table[]; tableSeats: TableSeat[] }
@@ -251,7 +259,9 @@ export type PlanAction =
   | { type: "SET_VALIDATION_RESULTS"; validationResults: ValidationResult }
   | { type: "SET_DIRTY"; dirty: boolean }
   | { type: "TOGGLE_LAYER"; layer: "showChairs" | "showTables" | "showEscapeRoutes" | "showNoSeatZones" | "showGrid" | "showMeasurements" | "showValidation"; value?: boolean }
-  | { type: "SET_ZOOM"; zoom: number };
+  | { type: "SET_ZOOM"; zoom: number }
+  | { type: "UNDO" }
+  | { type: "REDO" };
 
 export interface DatabaseConfig {
   host?: string;

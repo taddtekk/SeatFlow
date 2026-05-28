@@ -6,6 +6,8 @@ Die Planungsseite verwendet einen zentralen `useReducer`-State mit `currentPlan`
 
 SVG Pointer Events steuern Auswahl, Drag & Drop und Resize-Handles. Unterstützt werden in M1 rechteckige Objekte und Tische. Freie Polygone, echte Mehrbenutzerbearbeitung und dauerhafte MariaDB-Persistenz folgen später.
 
+M1.1 ergänzt eine kleine History im Editor-State. Mutierende Aktionen schreiben vorherige Planstände in `undoStack`; `redoStack` wird nach neuen Änderungen geleert. Validierungsergebnisse werden debounced über `/api/validate-plan` aktualisiert und nicht als eigene Undo-Stufe behandelt.
+
 SeatFlow ist als npm-Workspace-Monorepo aufgebaut. Die Kernlogik liegt in browserunabhängigen Packages, damit Frontend, API und spätere Worker dieselben Regeln nutzen können.
 
 ## Systemaufbau

@@ -37,10 +37,30 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
         event.preventDefault();
         dispatch({ type: "DELETE_OBJECT", objectId: state.selectedObjectId });
       }
+      const isUndo = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && !event.shiftKey;
+      const isRedo = ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") || ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "z");
+      if (isUndo) {
+        event.preventDefault();
+        dispatch({ type: "UNDO" });
+      }
+      if (isRedo) {
+        event.preventDefault();
+        dispatch({ type: "REDO" });
+      }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [state.selectedObjectId]);
+
+  useEffect(() => {
+    if (!state.dirtyState) {
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      void validateCurrentPlan(false);
+    }, 650);
+    return () => window.clearTimeout(timeout);
+  }, [state.currentPlan.updatedAtIso, state.dirtyState]);
 
   const layers = {
     showChairs: state.showChairs,
@@ -63,11 +83,13 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
     });
   }
 
-  async function validateCurrentPlan() {
+  async function validateCurrentPlan(showNotice = true) {
     await runPlanRequest<ValidationResult>("/api/validate-plan", "Validierung wird geprüft...", (validationResults) => {
       dispatch({ type: "SET_VALIDATION_RESULTS", validationResults });
-      setNotice("Validierung wurde erneut geprüft.");
-    });
+      if (showNotice) {
+        setNotice("Validierung wurde erneut geprüft.");
+      }
+    }, { silent: !showNotice });
   }
 
   async function exportPdf() {
@@ -96,8 +118,10 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
     }
   }
 
-  async function runPlanRequest<T>(url: string, pendingMessage: string, onSuccess: (result: T) => void) {
-    setNotice(pendingMessage);
+  async function runPlanRequest<T>(url: string, pendingMessage: string, onSuccess: (result: T) => void, options: { silent?: boolean } = {}) {
+    if (!options.silent) {
+      setNotice(pendingMessage);
+    }
     try {
       const response = await fetch(url, {
         body: JSON.stringify(state.currentPlan),
@@ -109,7 +133,9 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
       }
       onSuccess((await response.json()) as T);
     } catch {
-      setNotice("Aktion konnte nicht abgeschlossen werden.");
+      if (!options.silent) {
+        setNotice("Aktion konnte nicht abgeschlossen werden.");
+      }
     }
   }
 
@@ -142,10 +168,7 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
     }
     if (tool === "draw_room") {
       const room = updateObjectRect(state.currentPlan.room, { x: point.x, y: point.y, width: 18000, height: 12000 }) as Plan["room"];
-      dispatch({ type: "SET_PLAN", plan: { ...state.currentPlan, room, updatedAtIso: new Date().toISOString() } });
-      dispatch({ type: "SET_DIRTY", dirty: true });
-      dispatch({ type: "SELECT_OBJECT", objectId: room.id });
-      dispatch({ type: "SET_ACTIVE_TOOL", tool: "select" });
+      dispatch({ type: "UPDATE_ROOM", room });
       return;
     }
     const object = createObjectFromTool(tool, point);
@@ -164,8 +187,7 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
       return;
     }
     if (object.id === state.currentPlan.room.id) {
-      dispatch({ type: "SET_PLAN", plan: { ...state.currentPlan, room: updateObjectRect(object, rect) as Plan["room"], updatedAtIso: new Date().toISOString() } });
-      dispatch({ type: "SET_DIRTY", dirty: true });
+      dispatch({ type: "UPDATE_ROOM", room: updateObjectRect(object, rect) as Plan["room"] });
       return;
     }
     dispatch({ type: "UPDATE_OBJECT", objectId: id, changes: { geometry: updateObjectRect(object, rect).geometry } });
@@ -176,10 +198,14 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
   return (
     <main className="seatflow-app">
       <TopBar
+        canRedo={state.redoStack.length > 0}
+        canUndo={state.undoStack.length > 0}
         dirty={state.dirtyState}
         onExportPdf={exportPdf}
         onRecalculate={recalculateSeating}
+        onRedo={() => dispatch({ type: "REDO" })}
         onSave={savePlan}
+        onUndo={() => dispatch({ type: "UNDO" })}
         planName={state.currentPlan.name}
         projectName={projectName}
       />

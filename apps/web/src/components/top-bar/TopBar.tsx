@@ -4,16 +4,24 @@ import { Button, IconButton } from "../ui/Button";
 
 export function TopBar({
   dirty,
+  canRedo,
+  canUndo,
   onExportPdf,
   onRecalculate,
+  onRedo,
   onSave,
+  onUndo,
   planName,
   projectName
 }: {
   dirty: boolean;
+  canRedo: boolean;
+  canUndo: boolean;
   onExportPdf: () => void;
   onRecalculate: () => void;
+  onRedo: () => void;
   onSave: () => void;
+  onUndo: () => void;
   planName: string;
   projectName: string;
 }) {
@@ -43,8 +51,8 @@ export function TopBar({
       </nav>
 
       <div className="topbar-actions">
-        <IconButton aria-label="Rückgängig" icon={<Undo2 size={18} />} />
-        <IconButton aria-label="Wiederholen" icon={<Redo2 size={18} />} />
+        <IconButton aria-label="Rückgängig" disabled={!canUndo} icon={<Undo2 size={18} />} onClick={onUndo} />
+        <IconButton aria-label="Wiederholen" disabled={!canRedo} icon={<Redo2 size={18} />} onClick={onRedo} />
         <Button icon={<RefreshCw size={17} />} onClick={onRecalculate} variant="primary">
           Bestuhlung neu berechnen
         </Button>

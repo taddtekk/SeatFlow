@@ -1,7 +1,7 @@
 "use client";
 
 import { chairToRect, objectToRect, tableToRect } from "@seatflow/geometry";
-import type { Chair, DrawingObject, Plan, Point, Rect, Table, ToolType, ValidationResult } from "@seatflow/types";
+import type { Chair, DrawingObject, Plan, Point, Rect, Table, TableGroup, ToolType, ValidationResult } from "@seatflow/types";
 import type { PointerEvent } from "react";
 import { useMemo, useRef } from "react";
 import { CanvasToolbar } from "./CanvasToolbar";
@@ -70,7 +70,7 @@ export function PlannerCanvas({
     point.x = event.clientX;
     point.y = event.clientY;
     const transformed = point.matrixTransform(svg.getScreenCTM()?.inverse());
-    return { x: snap(transformed.x), y: snap(transformed.y) };
+    return { x: snap(transformed.x, event.shiftKey), y: snap(transformed.y, event.shiftKey) };
   }
 
   function handleCanvasPointerDown(event: PointerEvent<SVGSVGElement>) {
@@ -189,6 +189,7 @@ export function PlannerCanvas({
               onHandlePointerDown={handleHandlePointerDown}
               onPointerDown={handleEntityPointerDown}
               selectedObjectId={selectedObjectId}
+              tableGroups={plan.tableGroups}
               tables={plan.tables}
             />
           ) : null}
@@ -262,30 +263,41 @@ function TableLayer({
   onHandlePointerDown,
   onPointerDown,
   selectedObjectId,
+  tableGroups,
   tables
 }: {
   onHandlePointerDown: (event: PointerEvent<SVGRectElement>, id: string, rect: Rect, mode: DragMode) => void;
   onPointerDown: (event: PointerEvent<SVGGElement>, id: string, rect: Rect) => void;
   selectedObjectId?: string | undefined;
+  tableGroups: TableGroup[];
   tables: Table[];
 }) {
+  const selectedGroup = tableGroups.find((group) => group.id === selectedObjectId);
+  const selectedGroupRect = selectedGroup ? getGroupRect(selectedGroup, tables) : null;
   return (
     <g className="tables">
       {tables.map((table) => {
         const rect = tableToRect(table);
         const selected = selectedObjectId === table.id || selectedObjectId === table.groupId;
+        const pointerTargetId = selectedObjectId === table.groupId && table.groupId ? table.groupId : table.id;
         return (
-          <g key={table.id} onPointerDown={(event) => onPointerDown(event, table.id, rect)} className={selected ? "selected-table" : ""}>
+          <g key={table.id} onPointerDown={(event) => onPointerDown(event, pointerTargetId, rect)} className={selected ? "selected-table" : ""}>
             {table.type === "round" ? (
               <circle cx={rect.x + rect.width / 2} cy={rect.y + rect.height / 2} r={rect.width / 2} />
             ) : (
               <rect height={rect.height} rx="70" width={rect.width} x={rect.x} y={rect.y} />
             )}
             <TableSeats table={table} />
-            {selected ? <SelectionHandles id={table.id} onHandlePointerDown={onHandlePointerDown} rect={rect} /> : null}
+            {selected && selectedObjectId === table.id ? <SelectionHandles id={table.id} onHandlePointerDown={onHandlePointerDown} rect={rect} /> : null}
           </g>
         );
       })}
+      {selectedGroup && selectedGroupRect ? (
+        <g className="table-group-selection" onPointerDown={(event) => onPointerDown(event, selectedGroup.id, selectedGroupRect)}>
+          <rect height={selectedGroupRect.height} width={selectedGroupRect.width} x={selectedGroupRect.x} y={selectedGroupRect.y} />
+          <SelectionHandles id={selectedGroup.id} onHandlePointerDown={onHandlePointerDown} rect={selectedGroupRect} />
+        </g>
+      ) : null}
     </g>
   );
 }
@@ -409,6 +421,22 @@ function isAddTool(tool: ToolType): boolean {
   return ["draw_room", "add_stage", "add_foh", "add_no_seat_zone", "add_escape_route", "add_exit", "add_seating_block", "add_table", "add_table_group"].includes(tool);
 }
 
-function snap(value: number): number {
-  return Math.round(value / 100) * 100;
+function getGroupRect(group: TableGroup, tables: Table[]): Rect | null {
+  const groupTables = tables.filter((table) => group.tableIds.includes(table.id));
+  if (groupTables.length === 0) {
+    return null;
+  }
+  const rects = groupTables.map(tableToRect);
+  const minX = Math.min(...rects.map((rect) => rect.x));
+  const minY = Math.min(...rects.map((rect) => rect.y));
+  const maxX = Math.max(...rects.map((rect) => rect.x + rect.width));
+  const maxY = Math.max(...rects.map((rect) => rect.y + rect.height));
+  return { x: minX - 500, y: minY - 500, width: maxX - minX + 1000, height: maxY - minY + 1000 };
+}
+
+function snap(value: number, disabled = false): number {
+  if (disabled) {
+    return Math.round(value);
+  }
+  return Math.round(value / 250) * 250;
 }

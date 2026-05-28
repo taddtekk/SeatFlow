@@ -6,6 +6,10 @@ Der Planner unter `/planner` nutzt jetzt einen zentralen `useReducer`-Editor-Sta
 
 Die Aktionen „Bestuhlung neu berechnen“, „Validierung erneut prüfen“, „PDF exportieren“ und „Speichern“ verwenden den aktuellen Plan. Speichern läuft im MVP über das InMemory-Repository und ist daher nur bis zum Server-Neustart persistent.
 
+## M1.1 Editor-Komfort
+
+Der Editor unterstützt Undo/Redo über die Topbar sowie `Ctrl/Cmd+Z` und `Ctrl/Cmd+Y`. Objektbewegungen rasten standardmäßig auf ein 250-mm-Raster ein; mit gedrückter Shift-Taste kann ohne Raster verschoben werden. Nach Planänderungen läuft die technische Validierung automatisch mit kurzem Debounce im Hintergrund. Tischgruppen erhalten einen gemeinsamen Auswahlrahmen und können als Gruppe bewegt oder skaliert werden.
+
 SeatFlow ist ein webbasiertes Planungstool für Veranstaltungsplanung. Es soll Bestuhlungspläne, Tischpläne und Rettungswegepläne maßstäblich in Millimetern erstellen, Sperrflächen und Fluchtwege berücksichtigen und später regelbasiert prüfen.
 
 Wichtig: SeatFlow ersetzt keine behördliche oder brandschutztechnische Freigabe. Validierungen sind technische Hinweise nach dem gewählten Regelprofil.

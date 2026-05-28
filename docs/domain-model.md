@@ -6,6 +6,8 @@ Der Editor-State ist eine UI-Schicht über dem Plan-Modell. Er speichert den akt
 
 In M1 sind alle bearbeitbaren Geometrien rechteckig. Polygone bleiben im Typmodell vorbereitet, werden aber noch nicht interaktiv bearbeitet.
 
+Für Undo/Redo speichert der Editor kompakte History-Einträge mit Plan-Snapshot und Auswahl. Diese History ist nur clientseitig und wird nicht in der späteren Datenbank persistiert.
+
 Ein Plan besteht aus Raum, Zeichenobjekten, Bestuhlung, Tischen, Regelprofil und Validierungsergebnis.
 
 - Raum: maßstäbliche Grundfläche.
