@@ -193,7 +193,8 @@ export function PlannerCanvas({
             />
           ))}
 
-          {layers.showChairs ? <ChairLayer chairs={plan.chairs} /> : null}
+          {layers.showChairs ? <ChairLayer chairs={plan.chairs} zoom={zoom} /> : null}
+          {layers.showChairs ? <BlockLabels plan={plan} zoom={zoom} /> : null}
           {layers.showTables ? (
             <TableLayer
               onHandlePointerDown={handleHandlePointerDown}
@@ -259,12 +260,35 @@ function EscapeRouteLabel({ object, rect }: { object: DrawingObject; rect: Rect 
   );
 }
 
-function ChairLayer({ chairs }: { chairs: Chair[] }) {
+function ChairLayer({ chairs, zoom }: { chairs: Chair[]; zoom: number }) {
   return (
     <g className="chairs">
       {chairs.map((chair) => {
         const rect = chairToRect(chair);
-        return <rect height={rect.height} key={chair.id} rx="70" width={rect.width} x={rect.x} y={rect.y} />;
+        return (
+          <g key={chair.id}>
+            <rect height={rect.height} rx="70" width={rect.width} x={rect.x} y={rect.y} />
+            {zoom >= 1.55 && chair.label ? <text x={rect.x + rect.width / 2} y={rect.y + rect.height / 2}>{chair.label}</text> : null}
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+function BlockLabels({ plan, zoom }: { plan: Plan; zoom: number }) {
+  if (zoom < 0.85) {
+    return null;
+  }
+  return (
+    <g className="block-labels">
+      {plan.seatingBlocks.map((block) => {
+        const rect = block.bounds ?? getChairsRect(block.chairs);
+        return rect ? (
+          <text key={block.id} x={rect.x + rect.width / 2} y={rect.y - 420}>
+            {block.name} · {block.seatCount}
+          </text>
+        ) : null;
       })}
     </g>
   );
@@ -396,13 +420,16 @@ function objectClassName(role: DrawingObject["role"], selected: boolean): string
   if (role === "foh") classes.push("foh");
   if (role === "escape_route") classes.push("escape-route");
   if (role === "exit") classes.push("exits");
+  if (role === "seating_area") classes.push("seating-area");
+  if (role === "table_area") classes.push("table-area");
+  if (role === "generated_aisle") classes.push("generated-aisle");
   if (["no_seat_zone", "stage_access", "stairs", "technical_area", "wheelchair_area"].includes(role)) classes.push("no-seat-zone");
   if (selected) classes.push("selected-object");
   return classes.join(" ");
 }
 
 function formatLabel(object: DrawingObject, rect: Rect): string {
-  if (object.role === "stage" || object.role === "foh" || object.role === "no_seat_zone") {
+  if (object.role === "stage" || object.role === "foh" || object.role === "no_seat_zone" || object.role === "seating_area" || object.role === "table_area") {
     return `${(rect.width / 1000).toFixed(2).replace(".", ",")} m x ${(rect.height / 1000).toFixed(2).replace(".", ",")} m`;
   }
   return object.name;
@@ -410,8 +437,23 @@ function formatLabel(object: DrawingObject, rect: Rect): string {
 
 function isObjectHidden(object: DrawingObject, layers: Record<LayerKey, boolean>): boolean {
   if (object.role === "escape_route") return !layers.showEscapeRoutes;
+  if (object.role === "generated_aisle") return !layers.showEscapeRoutes;
+  if (object.role === "seating_area") return !layers.showChairs;
+  if (object.role === "table_area") return !layers.showTables;
   if (["no_seat_zone", "stairs", "stage_access", "technical_area", "wheelchair_area"].includes(object.role)) return !layers.showNoSeatZones;
   return false;
+}
+
+function getChairsRect(chairs: Chair[]): Rect | null {
+  if (chairs.length === 0) {
+    return null;
+  }
+  const rects = chairs.map(chairToRect);
+  const minX = Math.min(...rects.map((rect) => rect.x));
+  const minY = Math.min(...rects.map((rect) => rect.y));
+  const maxX = Math.max(...rects.map((rect) => rect.x + rect.width));
+  const maxY = Math.max(...rects.map((rect) => rect.y + rect.height));
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
 function tableAsObject(table: Table): DrawingObject {
@@ -424,7 +466,7 @@ function tableAsObject(table: Table): DrawingObject {
 }
 
 function isAddTool(tool: ToolType): boolean {
-  return ["draw_room", "add_stage", "add_foh", "add_no_seat_zone", "add_escape_route", "add_exit", "add_seating_block", "add_table", "add_table_group"].includes(tool);
+  return ["draw_room", "add_stage", "add_foh", "add_no_seat_zone", "add_escape_route", "add_exit", "add_seating_area", "add_seating_block", "add_table", "add_table_area", "add_table_group"].includes(tool);
 }
 
 function getGroupRect(group: TableGroup, tables: Table[]): Rect | null {

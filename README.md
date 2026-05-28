@@ -1,10 +1,10 @@
 # SeatFlow
 
-## M1/M2 Interaktiver Editor und Platzierungslogik
+## M3 Layout-Engine und Planungsbereiche
 
-Der Planner unter `/planner` nutzt einen zentralen `useReducer`-Editor-State. Der Plan wird aus strukturierten Plan-Daten gerendert: Raum, Bühne, FOH, Sperrflächen, Fluchtwege, Ausgänge, Stühle, Tische, Tischsitze und Tischgruppen. Objekte können ausgewählt, verschoben, skaliert, hinzugefügt und gelöscht werden. Das Eigenschaftenpanel bearbeitet die ausgewählte Entität direkt im Plan-State.
+Der Planner unter `/planner` nutzt einen zentralen `useReducer`-Editor-State. Der Plan wird aus strukturierten Plan-Daten gerendert: Raum, Bühne, FOH, Sperrflächen, Fluchtwege, Ausgänge, Bestuhlungsbereiche, Tischbereiche, automatisch generierte Gänge, Stühle, Tische, Tischsitze und Tischgruppen. Objekte können ausgewählt, verschoben, skaliert, hinzugefügt und gelöscht werden. Das Eigenschaftenpanel bearbeitet die ausgewählte Entität direkt im Plan-State.
 
-Die Aktionen „Bestuhlung neu berechnen“, „Tischlayout erzeugen“, „Validierung erneut prüfen“, „PDF exportieren“ und „Speichern“ verwenden den aktuellen Plan. Speichern läuft im MVP über das InMemory-Repository und ist daher nur bis zum Server-Neustart persistent. Zusätzlich legt der Browser einen stillen `localStorage`-Entwurf als Komfort-Fallback ab.
+Die Aktionen „Bestuhlung neu berechnen“, „Tischlayout erzeugen“, „Alle Bereiche neu generieren“, „Validierung erneut prüfen“, „PDF exportieren“ und „Speichern“ verwenden den aktuellen Plan. Speichern läuft im MVP über das InMemory-Repository und ist daher nur bis zum Server-Neustart persistent. Zusätzlich legt der Browser einen stillen `localStorage`-Entwurf als Komfort-Fallback ab.
 
 ## M1.1 Editor-Komfort
 
@@ -89,10 +89,12 @@ docs                  Entwicklerdokumentation
 - Raum, Bühne, FOH, Sperrflächen, Fluchtwege, Ausgänge, Stühle, Tische, Tischsitze und Tischgruppen aus Plan-Daten gerendert
 - Auswahl, Drag & Drop, rechteckiges Resize, Löschen und Eigenschaftenbearbeitung
 - Layer-Toggles für Stühle, Tische, Fluchtwege, Sperrflächen, Raster, Maße und Validierung
-- Auto-Bestuhlung per API mit Raumgrenzen, Sperrflächen, Fluchtwegen, FOH, Bühne und Tischen als Blocker
-- einfaches Tischlayout mit runden und rechteckigen Tischen
-- technische Validierungsmeldungen mit Fehlercodes
-- PDF-Export des aktuellen Plans nach `public/exports`
+- Bestuhlungsbereiche mit Zielplätzen, Stuhlmaßen, Reihenabstand, Mittelgang und Querwegen
+- Tischbereiche mit runden Tischen, Rechtecktischen, Bankett und parlamentarischem Grundlayout
+- Auto-Bestuhlung per API mit Raumgrenzen, Sperrflächen, Fluchtwegen, FOH, Bühne, Tischen und Tischbereichen als Blocker
+- Tischlayout per API mit Tischsitzen, Gruppen und Bereichsbindung
+- technische Validierungsmeldungen mit Fehlercodes und Objekt-Auswahl
+- PDF-Export des aktuellen Plans mit Planübersicht und Validierungsbericht nach `public/exports`
 - InMemory-Repositories
 - MariaDB-Architektur vorbereitet, noch nicht implementiert
 

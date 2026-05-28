@@ -185,7 +185,64 @@ export function createDemoPlan(): Plan {
     { id: "exit-west-south", role: "exit", name: "Ausgang West Süd", geometry: { kind: "rect", rect: { x: 2400, y: 22400, width: 850, height: 1100 } } },
     { id: "exit-east-south", role: "exit", name: "Ausgang Ost Süd", geometry: { kind: "rect", rect: { x: 38800, y: 22400, width: 850, height: 1100 } } },
     { id: "exit-south-left", role: "exit", name: "Ausgang Süd links", geometry: { kind: "rect", rect: { x: 11200, y: 31600, width: 1100, height: 850 } } },
-    { id: "exit-south-right", role: "exit", name: "Ausgang Süd rechts", geometry: { kind: "rect", rect: { x: 28800, y: 31600, width: 1100, height: 850 } } }
+    { id: "exit-south-right", role: "exit", name: "Ausgang Süd rechts", geometry: { kind: "rect", rect: { x: 28800, y: 31600, width: 1100, height: 850 } } },
+    {
+      id: "seating-area-left",
+      role: "seating_area",
+      name: "Bestuhlungsbereich A",
+      type: "rect",
+      geometry: { kind: "rect", rect: { x: 5200, y: 12600, width: 13200, height: 9200 } },
+      properties: {
+        orientationDeg: 0,
+        chairWidthMm: 500,
+        chairDepthMm: 520,
+        rowPitchMm: 1420,
+        targetSeatCount: 210,
+        generateMode: "target",
+        leftAisleMm: 0,
+        rightAisleMm: 700,
+        centerAisleMm: 1000,
+        crossAisleEveryRows: 5,
+        blockNamePrefix: "A"
+      }
+    },
+    {
+      id: "seating-area-right",
+      role: "seating_area",
+      name: "Bestuhlungsbereich B",
+      type: "rect",
+      geometry: { kind: "rect", rect: { x: 22600, y: 12600, width: 13200, height: 9200 } },
+      properties: {
+        orientationDeg: 0,
+        chairWidthMm: 500,
+        chairDepthMm: 520,
+        rowPitchMm: 1420,
+        targetSeatCount: 210,
+        generateMode: "target",
+        leftAisleMm: 700,
+        rightAisleMm: 0,
+        centerAisleMm: 1000,
+        crossAisleEveryRows: 5,
+        blockNamePrefix: "B"
+      }
+    },
+    {
+      id: "table-area-demo",
+      role: "table_area",
+      name: "Tischbereich Lounge",
+      type: "rect",
+      geometry: { kind: "rect", rect: { x: 5200, y: 7300, width: 32600, height: 2600 } },
+      properties: {
+        tableLayoutType: "rounds",
+        tableType: "round",
+        targetSeats: 96,
+        seatsPerTable: 8,
+        tableDiameterMm: 1600,
+        tableSpacingMm: 1200,
+        chairDistanceMm: 320,
+        orientationDeg: 0
+      }
+    }
   ];
   const basePlan: Plan = {
     id: "plan-demo",
@@ -202,15 +259,19 @@ export function createDemoPlan(): Plan {
     tableSeats: [],
     ruleProfile: createDefaultRuleProfile(),
     metadata: {
+      createdAtIso: new Date(0).toISOString(),
       projectName: "Sommerkonzert 2026",
       notes: "Strukturierter Demo-Plan fuer den interaktiven SeatFlow Planner."
     },
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
     updatedAtIso: new Date(0).toISOString()
   };
   const seating = generateSeating(basePlan);
-  const tableLayout = generateTableLayout({ ...basePlan, chairs: seating.chairs, seatingBlocks: seating.seatingBlocks }, { targetTables: 12 });
+  const tableLayout = generateTableLayout({ ...basePlan, objects: [...basePlan.objects, ...seating.generatedAisles], chairs: seating.chairs, seatingBlocks: seating.seatingBlocks });
   const plan: Plan = {
     ...basePlan,
+    objects: [...basePlan.objects, ...seating.generatedAisles],
     chairs: seating.chairs,
     seatingBlocks: seating.seatingBlocks,
     tableGroups: tableLayout.tableGroups,

@@ -126,6 +126,54 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
     });
   }
 
+  async function generateAllLayouts() {
+    await runPlanRequest<{ plan: Plan; validationResults: ValidationResult }>("/api/generate-layouts", "Alle Bereiche werden neu generiert...", (result) => {
+      dispatch({ type: "SET_PLAN", plan: result.plan });
+      dispatch({ type: "SET_DIRTY", dirty: true });
+      dispatch({ type: "SET_VALIDATION_RESULTS", validationResults: result.validationResults });
+      dispatch({ type: "SET_LAST_CALCULATION_AT", lastCalculationAt: new Date().toISOString() });
+      setNotice("Alle Layoutbereiche wurden neu generiert.");
+    });
+  }
+
+  async function generateSelectedArea(objectId: string) {
+    const object = state.currentPlan.objects.find((item) => item.id === objectId);
+    if (!object) {
+      return;
+    }
+    if (object.role === "seating_area") {
+      await runPlanRequest<Plan>(
+        "/api/generate-seating",
+        "Bestuhlungsbereich wird generiert...",
+        (plan) => {
+          dispatch({ type: "SET_PLAN", plan });
+          dispatch({ type: "SET_DIRTY", dirty: true });
+          if (plan.validationResult) {
+            dispatch({ type: "SET_VALIDATION_RESULTS", validationResults: plan.validationResult });
+          }
+          setNotice("Bestuhlungsbereich wurde generiert.");
+        },
+        { payload: { plan: state.currentPlan, options: { areaIds: [objectId] } } }
+      );
+      return;
+    }
+    if (object.role === "table_area") {
+      await runPlanRequest<Plan>(
+        "/api/generate-table-layout",
+        "Tischbereich wird generiert...",
+        (plan) => {
+          dispatch({ type: "SET_PLAN", plan });
+          dispatch({ type: "SET_DIRTY", dirty: true });
+          if (plan.validationResult) {
+            dispatch({ type: "SET_VALIDATION_RESULTS", validationResults: plan.validationResult });
+          }
+          setNotice("Tischbereich wurde generiert.");
+        },
+        { payload: { plan: state.currentPlan, options: { areaIds: [objectId] } } }
+      );
+    }
+  }
+
   async function validateCurrentPlan(showNotice = true) {
     await runPlanRequest<ValidationResult>("/api/validate-plan", "Validierung wird geprüft...", (validationResults) => {
       dispatch({ type: "SET_VALIDATION_RESULTS", validationResults });
@@ -169,13 +217,18 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
     }
   }
 
-  async function runPlanRequest<T>(url: string, pendingMessage: string, onSuccess: (result: T) => void, options: { silent?: boolean; onError?: () => void } = {}) {
+  async function runPlanRequest<T>(
+    url: string,
+    pendingMessage: string,
+    onSuccess: (result: T) => void,
+    options: { silent?: boolean; onError?: () => void; payload?: unknown } = {}
+  ) {
     if (!options.silent) {
       setNotice(pendingMessage);
     }
     try {
       const response = await fetch(url, {
-        body: JSON.stringify(state.currentPlan),
+        body: JSON.stringify(options.payload ?? state.currentPlan),
         headers: { "Content-Type": "application/json" },
         method: "POST"
       });
@@ -202,6 +255,10 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
     }
     if (tool === "generate_table_layout") {
       void generateTables();
+      return;
+    }
+    if (tool === "generate_layouts") {
+      void generateAllLayouts();
       return;
     }
     dispatch({ type: "SET_ACTIVE_TOOL", tool });
@@ -270,6 +327,7 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
           activeTool={state.activeTool}
           layers={layers}
           onExportPdf={exportPdf}
+          onGenerateLayouts={generateAllLayouts}
           onGenerateTables={generateTables}
           onRecalculate={recalculateSeating}
           onToggleLayer={(layer) => dispatch({ type: "TOGGLE_LAYER", layer })}
@@ -301,12 +359,14 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
             validationResults={state.validationResults}
             zoom={state.zoom}
           />
-          <StatusBar gridSizeMm={state.gridSizeMm} lastCalculationIso={state.lastCalculationAt ?? state.lastCalculationIso} plan={state.currentPlan} saveStatus={state.saveStatus} zoom={state.zoom} />
+          <StatusBar gridSizeMm={state.gridSizeMm} lastCalculationIso={state.lastCalculationAt ?? state.lastCalculationIso} plan={state.currentPlan} saveStatus={state.saveStatus} validationResults={state.validationResults} zoom={state.zoom} />
           {notice ? <div className="toast-status">{notice}</div> : null}
         </div>
         <aside className="right-sidebar" aria-label="Eigenschaften und Validierung">
           <PropertiesPanel
             onDelete={(id) => dispatch({ type: "DELETE_OBJECT", objectId: id })}
+            onGenerateAll={generateAllLayouts}
+            onGenerateForSelected={generateSelectedArea}
             onSelectNone={() => dispatch({ type: "CLEAR_SELECTION" })}
             onUpdateObject={updateObject}
             onUpdateObjectRect={updateObjectRectValue}
@@ -314,7 +374,7 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
             plan={state.currentPlan}
             selectedObjectId={state.selectedObjectId}
           />
-          <ValidationPanel onValidate={validateCurrentPlan} validationResults={state.validationResults} />
+          <ValidationPanel onSelectObject={(objectId) => dispatch({ type: "SELECT_OBJECT", objectId })} onValidate={validateCurrentPlan} validationResults={state.validationResults} />
         </aside>
       </div>
     </main>
@@ -328,12 +388,15 @@ function createObjectFromTool(tool: ToolType, point: Point): DrawingObject | nul
     add_no_seat_zone: { role: "no_seat_zone", name: "Sperrfläche", width: 4000, height: 3000 },
     add_escape_route: { role: "escape_route", name: "Fluchtweg", width: 8000, height: 2000 },
     add_exit: { role: "exit", name: "Ausgang", width: 800, height: 800 },
-    add_seating_block: { role: "seating_block", name: "Stuhlblock", width: 6000, height: 4000 }
+    add_seating_area: { role: "seating_area", name: "Bestuhlungsbereich", width: 12000, height: 8000 },
+    add_seating_block: { role: "seating_block", name: "Stuhlblock", width: 6000, height: 4000 },
+    add_table_area: { role: "table_area", name: "Tischbereich", width: 12000, height: 7000 }
   };
   const spec = specs[tool];
   if (!spec) {
     return null;
   }
+  const properties = defaultObjectProperties(spec.role);
   return {
     id: `${spec.role}-${Date.now()}`,
     type: "rect",
@@ -341,8 +404,40 @@ function createObjectFromTool(tool: ToolType, point: Point): DrawingObject | nul
     name: spec.name,
     rotationDeg: 0,
     visible: true,
+    ...(properties ? { properties } : {}),
     geometry: { kind: "rect", rect: { x: point.x, y: point.y, width: spec.width, height: spec.height } }
   };
+}
+
+function defaultObjectProperties(role: DrawingObject["role"]): Record<string, unknown> | undefined {
+  if (role === "seating_area") {
+    return {
+      orientationDeg: 0,
+      chairWidthMm: 500,
+      chairDepthMm: 520,
+      rowPitchMm: 1420,
+      targetSeatCount: 120,
+      generateMode: "target",
+      centerAisleMm: 1200,
+      crossAisleEveryRows: 6,
+      blockNamePrefix: "Neu"
+    };
+  }
+  if (role === "table_area") {
+    return {
+      tableLayoutType: "rounds",
+      tableType: "round",
+      targetSeats: 64,
+      seatsPerTable: 8,
+      tableDiameterMm: 1800,
+      tableWidthMm: 2200,
+      tableDepthMm: 900,
+      tableSpacingMm: 1200,
+      chairDistanceMm: 320,
+      orientationDeg: 0
+    };
+  }
+  return undefined;
 }
 
 function createTable(point: Point, index = Date.now()): Table {

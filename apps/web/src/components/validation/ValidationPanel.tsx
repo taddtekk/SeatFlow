@@ -4,7 +4,7 @@ import { Button } from "../ui/Button";
 import { Panel } from "../ui/Panel";
 import { ValidationMessage } from "./ValidationMessage";
 
-export function ValidationPanel({ onValidate, validationResults }: { onValidate?: () => void; validationResults: ValidationResult }) {
+export function ValidationPanel({ onSelectObject, onValidate, validationResults }: { onSelectObject?: (objectId: string) => void; onValidate?: () => void; validationResults: ValidationResult }) {
   const errors = validationResults.messages.filter((message) => message.severity === "error");
   const warnings = validationResults.messages.filter((message) => message.severity === "warning");
   const hints = validationResults.messages.filter((message) => message.severity === "info");
@@ -28,18 +28,32 @@ export function ValidationPanel({ onValidate, validationResults }: { onValidate?
 
       <div className="validation-list">
         {validationResults.messages.length === 0 ? (
-          <p className="empty-panel-copy">Keine Validierungsmeldungen.</p>
+          <p className="empty-panel-copy">Keine Fehler gefunden.</p>
         ) : (
-          validationResults.messages.slice(0, 8).map((message) => (
-            <ValidationMessage
-              affectedObject={message.objectId ?? "Plan"}
-              key={message.id}
-              title={message.message}
-              tone={message.severity}
-            />
-          ))
+          [
+            { title: "Fehler", messages: errors },
+            { title: "Warnungen", messages: warnings },
+            { title: "Hinweise", messages: hints }
+          ].map((group) =>
+            group.messages.length > 0 ? (
+              <section className="validation-group" key={group.title}>
+                <h3>{group.title}</h3>
+                {group.messages.slice(0, 5).map((message) => (
+                  <ValidationMessage
+                    affectedObject={message.objectName ?? message.objectId ?? "Plan"}
+                    key={message.id}
+                    {...(message.objectId ? { onClick: () => onSelectObject?.(message.objectId as string) } : {})}
+                    title={message.message}
+                    tone={message.severity}
+                  />
+                ))}
+              </section>
+            ) : null
+          )
         )}
       </div>
+
+      <p className="validation-disclaimer">Diese Prüfung ersetzt keine behördliche oder brandschutztechnische Freigabe.</p>
 
       <Button className="validate-button" icon={<RefreshCw size={16} />} onClick={onValidate} variant="primary">
         Validierung erneut prüfen

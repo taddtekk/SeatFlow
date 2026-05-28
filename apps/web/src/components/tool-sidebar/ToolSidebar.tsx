@@ -33,8 +33,10 @@ const tools: Array<{ id: ToolType; icon: ReactNode; label: string }> = [
   { id: "add_no_seat_zone", icon: <Ban size={18} />, label: "Sperrfläche hinzufügen" },
   { id: "add_escape_route", icon: <Route size={18} />, label: "Fluchtweg hinzufügen" },
   { id: "add_exit", icon: <DoorOpen size={18} />, label: "Ausgang hinzufügen" },
+  { id: "add_seating_area", icon: <Armchair size={18} />, label: "Bestuhlungsbereich hinzufügen" },
   { id: "add_seating_block", icon: <Rows3 size={18} />, label: "Stuhlblock hinzufügen" },
   { id: "add_table", icon: <Table2 size={18} />, label: "Tisch hinzufügen" },
+  { id: "add_table_area", icon: <Grid3X3 size={18} />, label: "Tischbereich hinzufügen" },
   { id: "add_table_group", icon: <Layers size={18} />, label: "Tischgruppe hinzufügen" },
   { id: "delete_object", icon: <Trash2 size={18} />, label: "Objekt löschen" }
 ];
@@ -55,6 +57,7 @@ export function ToolSidebar({
   activeTool,
   layers,
   onExportPdf,
+  onGenerateLayouts,
   onGenerateTables,
   onRecalculate,
   onToggleLayer,
@@ -63,6 +66,7 @@ export function ToolSidebar({
   activeTool: ToolType;
   layers: Record<"showChairs" | "showTables" | "showEscapeRoutes" | "showNoSeatZones" | "showGrid" | "showMeasurements" | "showValidation", boolean>;
   onExportPdf: () => void;
+  onGenerateLayouts: () => void;
   onGenerateTables: () => void;
   onRecalculate: () => void;
   onToggleLayer: (layer: LayerKey) => void;
@@ -85,6 +89,7 @@ export function ToolSidebar({
       <SidebarSection title="Aktionen">
         <ActionButton icon={<Cloud size={18} />} label="Bestuhlung neu berechnen" onClick={onRecalculate} />
         <ActionButton icon={<Table2 size={18} />} label="Tischlayout erzeugen" onClick={onGenerateTables} />
+        <ActionButton icon={<Layers size={18} />} label="Alle Bereiche neu generieren" onClick={onGenerateLayouts} />
         <ActionButton icon={<FileDown size={18} />} label="PDF exportieren" onClick={onExportPdf} />
       </SidebarSection>
 

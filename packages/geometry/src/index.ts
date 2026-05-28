@@ -1,7 +1,11 @@
-import type { Chair, DrawingObject, Geometry, Plan, Point, Rect, Table } from "@seatflow/types";
+import type { Chair, DrawingObject, Geometry, Plan, Point, Rect, Table, TableSeat } from "@seatflow/types";
 
 export function pointInRect(point: Point, rect: Rect): boolean {
   return point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height;
+}
+
+export function rectContainsPoint(rect: Rect, point: Point): boolean {
+  return pointInRect(point, rect);
 }
 
 export function rectsOverlap(a: Rect, b: Rect): boolean {
@@ -18,6 +22,15 @@ export function expandRect(rect: Rect, amountMm: number): Rect {
     y: rect.y - amountMm,
     width: rect.width + amountMm * 2,
     height: rect.height + amountMm * 2
+  };
+}
+
+export function shrinkRect(rect: Rect, amountMm: number): Rect {
+  return {
+    x: rect.x + amountMm,
+    y: rect.y + amountMm,
+    width: Math.max(0, rect.width - amountMm * 2),
+    height: Math.max(0, rect.height - amountMm * 2)
   };
 }
 
@@ -63,6 +76,19 @@ export function tableToRect(table: Table): Rect {
   };
 }
 
+export function tableSeatToRect(seat: TableSeat): Rect {
+  return {
+    x: seat.x ?? seat.position.x,
+    y: seat.y ?? seat.position.y,
+    width: seat.widthMm,
+    height: seat.depthMm
+  };
+}
+
+export function generatedAisleToRect(object: DrawingObject): Rect {
+  return objectToRect(object);
+}
+
 export function getTablePosition(table: Table): Point {
   return {
     x: table.x ?? table.position.x,
@@ -91,6 +117,75 @@ export function objectOverlapsForbiddenArea(rect: Rect, forbiddenAreas: DrawingO
 
 export function rectOverlapsAny(rect: Rect, others: Rect[]): boolean {
   return others.some((other) => rectsOverlap(rect, other));
+}
+
+export function rectIntersectsAny(rect: Rect, others: Rect[]): boolean {
+  return rectOverlapsAny(rect, others);
+}
+
+export function filterBlockedRects(rects: Rect[], blockedRects: Rect[], safetyDistanceMm = 0): Rect[] {
+  const expanded = blockedRects.map((rect) => expandRect(rect, safetyDistanceMm));
+  return rects.filter((rect) => !rectOverlapsAny(rect, expanded));
+}
+
+export function findFreeGridPositions({
+  area,
+  blockedRects,
+  itemSize,
+  pitch,
+  limit
+}: {
+  area: Rect;
+  blockedRects: Rect[];
+  itemSize: { width: number; height: number };
+  pitch: { x: number; y: number };
+  limit?: number;
+}): Point[] {
+  const positions: Point[] = [];
+  for (let y = area.y; y + itemSize.height <= area.y + area.height; y += pitch.y) {
+    for (let x = area.x; x + itemSize.width <= area.x + area.width; x += pitch.x) {
+      const rect = { x, y, width: itemSize.width, height: itemSize.height };
+      if (!rectOverlapsAny(rect, blockedRects)) {
+        positions.push({ x, y });
+        if (limit && positions.length >= limit) {
+          return positions;
+        }
+      }
+    }
+  }
+  return positions;
+}
+
+export function getRoomRect(plan: Pick<Plan, "room">): Rect {
+  return objectToRect(plan.room);
+}
+
+export function getForbiddenRectsFromPlan(
+  plan: Pick<Plan, "objects" | "tables" | "tableSeats">,
+  options: { includeRoles?: DrawingObject["role"][]; excludeObjectIds?: string[]; includeTables?: boolean; includeTableSeats?: boolean; safetyDistanceMm?: number } = {}
+): Rect[] {
+  const defaultRoles: DrawingObject["role"][] = [
+    "stage",
+    "foh",
+    "escape_route",
+    "exit",
+    "no_seat_zone",
+    "stairs",
+    "stage_access",
+    "technical_area",
+    "wheelchair_area",
+    "table_area",
+    "generated_aisle"
+  ];
+  const roles = new Set(options.includeRoles ?? defaultRoles);
+  const excluded = new Set(options.excludeObjectIds ?? []);
+  const safety = options.safetyDistanceMm ?? 0;
+  const objectRects = plan.objects
+    .filter((object) => object.visible !== false && !excluded.has(object.id) && roles.has(object.role))
+    .map((object) => expandRect(objectToRect(object), safety));
+  const tableRects = options.includeTables === false ? [] : plan.tables.map((table) => expandRect(tableToRect(table), safety));
+  const tableSeatRects = options.includeTableSeats ? plan.tableSeats.map((seat) => expandRect(tableSeatToRect(seat), safety)) : [];
+  return [...objectRects, ...tableRects, ...tableSeatRects];
 }
 
 export function mmToCanvasPx(valueMm: number, scale: number): number {
@@ -125,5 +220,14 @@ export function snapPointToGrid(point: Point, gridSizeMm: number): Point {
   return {
     x: snapValueToGrid(point.x, gridSizeMm),
     y: snapValueToGrid(point.y, gridSizeMm)
+  };
+}
+
+export function snapRectToGrid(rect: Rect, gridSizeMm: number): Rect {
+  return {
+    x: snapValueToGrid(rect.x, gridSizeMm),
+    y: snapValueToGrid(rect.y, gridSizeMm),
+    width: Math.max(gridSizeMm, snapValueToGrid(rect.width, gridSizeMm)),
+    height: Math.max(gridSizeMm, snapValueToGrid(rect.height, gridSizeMm))
   };
 }

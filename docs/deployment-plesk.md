@@ -1,6 +1,6 @@
 # Deployment auf Plesk
 
-## M1 Build-Hinweis
+## M3 Build-Hinweis
 
 Auf Plesk sollte `AUTO_PUSH_AFTER_BUILD=false` gesetzt werden. Lokale Builds pushen automatisch nach GitHub, der Server-Build soll dagegen nur installieren und bauen. Speichern nutzt im aktuellen MVP InMemory-Repositories und ist nach einem Server-Neustart nicht dauerhaft. Der Browser kann zusätzlich einen lokalen Entwurf in `localStorage` behalten, das ersetzt aber keine serverseitige Persistenz.
 
@@ -45,5 +45,5 @@ MariaDB-Variablen sind vorbereitet, aber die echte MariaDB-Implementierung ist i
 - keine echte Authentifizierung
 - keine echte MariaDB-Verbindung
 - keine vollständige Brandschutzberechnung
-- PDF-Export ist funktional, aber noch einfach
+- PDF-Export enthält Planübersicht und Validierungsbericht, bleibt aber schematisch
 - InMemory-Speicherung geht bei Server-Neustart verloren

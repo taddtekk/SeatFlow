@@ -1,23 +1,34 @@
-import type { Plan, SaveStatus } from "@seatflow/types";
+import type { Plan, SaveStatus, ValidationResult } from "@seatflow/types";
 
 export function StatusBar({
   gridSizeMm,
   lastCalculationIso,
   plan,
   saveStatus,
+  validationResults,
   zoom
 }: {
   gridSizeMm: number;
   lastCalculationIso?: string | undefined;
   plan: Plan;
   saveStatus: SaveStatus;
+  validationResults: ValidationResult;
   zoom: number;
 }) {
+  const seatingAreas = plan.objects.filter((object) => object.role === "seating_area").length;
+  const tableAreas = plan.objects.filter((object) => object.role === "table_area").length;
+  const errors = validationResults.messages.filter((message) => message.severity === "error").length;
+  const warnings = validationResults.messages.filter((message) => message.severity === "warning").length;
   return (
     <footer className="statusbar">
       <span>Stühle gesamt: <strong>{plan.chairs.length}</strong></span>
+      <span>Tischsitze: <strong>{plan.tableSeats.length}</strong></span>
       <span>Tische gesamt: <strong>{plan.tables.length}</strong></span>
+      <span>Bestuhlungsbereiche: <strong>{seatingAreas}</strong></span>
+      <span>Tischbereiche: <strong>{tableAreas}</strong></span>
       <span>Regelprofil: <strong>{plan.ruleProfile.name}</strong></span>
+      <span>Fehler: <strong>{errors}</strong></span>
+      <span>Warnungen: <strong>{warnings}</strong></span>
       <span>Stuhlbreite: <strong>{plan.ruleProfile.minSeatWidthMm} mm</strong></span>
       <span>Reihenabstand: <strong>{plan.ruleProfile.minRowClearanceMm} mm</strong></span>
       <span>Raster: <strong>{gridSizeMm} mm</strong></span>

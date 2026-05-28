@@ -31,9 +31,12 @@ export type ObjectRole =
   | "stage_access"
   | "technical_area"
   | "chair"
+  | "seating_area"
   | "seating_block"
   | "table"
+  | "table_area"
   | "table_group"
+  | "generated_aisle"
   | "wheelchair_area"
   | "note";
 
@@ -49,6 +52,40 @@ export interface DrawingObject {
   note?: string;
   safetyDistanceMm?: Millimeters;
   properties?: Record<string, unknown>;
+}
+
+export type SeatingGenerateMode = "max" | "target";
+export type TableAreaLayoutType = "rounds" | "rectangular" | "banquet" | "parliamentary" | "u_shape" | "block";
+
+export interface SeatingAreaProperties {
+  orientationDeg?: Millimeters;
+  chairWidthMm?: Millimeters;
+  chairDepthMm?: Millimeters;
+  rowPitchMm?: Millimeters;
+  targetSeatCount?: number;
+  maxSeatCount?: number;
+  generateMode?: SeatingGenerateMode;
+  leftAisleMm?: Millimeters;
+  rightAisleMm?: Millimeters;
+  centerAisleMm?: Millimeters;
+  crossAisleEveryRows?: number;
+  blockNamePrefix?: string;
+  [key: string]: unknown;
+}
+
+export interface TableAreaProperties {
+  tableLayoutType?: TableAreaLayoutType;
+  tableType?: TableType;
+  targetSeats?: number;
+  seatsPerTable?: number;
+  tableDiameterMm?: Millimeters;
+  tableWidthMm?: Millimeters;
+  tableDepthMm?: Millimeters;
+  tableSpacingMm?: Millimeters;
+  chairDistanceMm?: Millimeters;
+  rowSpacingMm?: Millimeters;
+  orientationDeg?: Millimeters;
+  [key: string]: unknown;
 }
 
 export interface Room extends DrawingObject {
@@ -83,7 +120,11 @@ export interface Chair {
   widthMm: Millimeters;
   depthMm: Millimeters;
   rotationDeg: number;
+  rowIndex?: number;
+  seatIndex?: number;
+  label?: string;
   blockId?: string;
+  seatingAreaId?: string;
   tableId?: string;
 }
 
@@ -93,6 +134,10 @@ export interface SeatingBlock {
   chairs: Chair[];
   rowCount: number;
   seatCount: number;
+  areaId?: string;
+  bounds?: Rect;
+  generatedAisles?: DrawingObject[];
+  properties?: Record<string, unknown>;
 }
 
 export type TableType =
@@ -122,6 +167,7 @@ export interface Table {
   seatCount?: number;
   seats: number;
   groupId?: string;
+  areaId?: string;
   properties?: Record<string, unknown>;
 }
 
@@ -167,6 +213,7 @@ export interface ValidationMessage {
   severity: ValidationSeverity;
   objectId?: string;
   objectName?: string;
+  objectRole?: ObjectRole;
   code?: string;
   message: string;
   details?: Record<string, unknown>;
@@ -210,6 +257,9 @@ export interface Plan {
   validationResults?: ValidationResult;
   validationResult?: ValidationResult;
   metadata: PlanMetadata;
+  createdAt?: string;
+  updatedAt?: string;
+  lastSavedAt?: string;
   updatedAtIso: string;
 }
 
@@ -236,7 +286,9 @@ export interface ExportResult {
   fileName: string;
   relativePath: string;
   url: string;
+  publicUrl?: string;
   createdAtIso: string;
+  createdAt?: string;
 }
 
 export type ToolType =
@@ -247,9 +299,12 @@ export type ToolType =
   | "add_no_seat_zone"
   | "add_escape_route"
   | "add_exit"
+  | "add_seating_area"
   | "add_seating_block"
   | "add_table"
+  | "add_table_area"
   | "add_table_group"
+  | "generate_layouts"
   | "generate_table_layout"
   | "delete_object"
   | "recalculate_seating"

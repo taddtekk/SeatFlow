@@ -21,8 +21,27 @@ test("geometry: snapPointToGrid rastet Punkte", () => {
   assert.deepEqual(geometry.snapPointToGrid({ x: 124, y: 376 }, 250), { x: 0, y: 500 });
 });
 
+test("geometry: snapRectToGrid rastet Rechtecke", () => {
+  assert.deepEqual(geometry.snapRectToGrid({ x: 126, y: 376, width: 997, height: 1499 }, 250), { x: 250, y: 500, width: 1000, height: 1500 });
+});
+
 test("geometry: distanceBetweenRects liefert Abstand", () => {
   assert.equal(geometry.distanceBetweenRects({ x: 0, y: 0, width: 100, height: 100 }, { x: 300, y: 0, width: 100, height: 100 }), 200);
+});
+
+test("geometry: getForbiddenRectsFromPlan liefert Blocker", () => {
+  const plan = repositories.createDemoPlan();
+  const rects = geometry.getForbiddenRectsFromPlan(plan);
+  assert.ok(rects.length > 0);
+});
+
+test("planner-core: generateSeating nutzt Bestuhlungsbereiche", () => {
+  const plan = repositories.createDemoPlan();
+  const result = plannerCore.generateSeating({ ...plan, chairs: [], seatingBlocks: [] });
+  const areas = plan.objects.filter((object) => object.role === "seating_area");
+  assert.ok(areas.length > 0);
+  assert.equal(result.stats.usedSeatingAreas, areas.length);
+  assert.equal(result.chairs.every((chair) => areas.some((area) => geometry.rectInsideRect(geometry.chairToRect(chair), geometry.objectToRect(area)))), true);
 });
 
 test("planner-core: generateSeating platziert keine Stuehle in Sperrflaechen", () => {
@@ -46,10 +65,26 @@ test("planner-core: generateTableLayout platziert Tische im Raum", () => {
   assert.equal(result.tables.every((table) => geometry.isTableInsideRoom(table, plan)), true);
 });
 
+test("planner-core: generateTableLayout nutzt Tischbereich", () => {
+  const plan = repositories.createDemoPlan();
+  const result = plannerCore.generateTableLayout({ ...plan, tables: [], tableSeats: [], tableGroups: [] });
+  const area = plan.objects.find((object) => object.role === "table_area");
+  assert.ok(area);
+  assert.ok(result.tables.length > 0);
+  assert.equal(result.tables.every((table) => geometry.rectInsideRect(geometry.tableToRect(table), geometry.objectToRect(area))), true);
+});
+
+test("planner-core: generateTableLayout erzeugt Tischsitze", () => {
+  const plan = repositories.createDemoPlan();
+  const result = plannerCore.generateTableLayout({ ...plan, tables: [], tableSeats: [], tableGroups: [] });
+  assert.ok(result.tableSeats.length > 0);
+  assert.equal(result.tableSeats.length, result.tables.reduce((sum, table) => sum + (table.seatCount ?? table.seats), 0));
+});
+
 test("planner-core: generateTableLayout vermeidet Sperrflaechen grob", () => {
   const plan = repositories.createDemoPlan();
   const result = plannerCore.generateTableLayout({ ...plan, tables: [], tableSeats: [], tableGroups: [] }, { targetTables: 4 });
-  const forbidden = plannerCore.getForbiddenAreas(plan);
+  const forbidden = plan.objects.filter((object) => ["stage", "foh", "escape_route", "no_seat_zone", "stairs", "stage_access", "technical_area", "wheelchair_area"].includes(object.role));
   assert.equal(result.tables.some((table) => geometry.objectOverlapsForbiddenArea(geometry.tableToRect(table), forbidden)), false);
 });
 
@@ -79,6 +114,26 @@ test("rules: erkennt zu schmalen Fluchtweg", () => {
   );
   const validation = rules.validatePlan({ ...plan, objects });
   assert.ok(validation.messages.some((message) => message.code === "ESCAPE_ROUTE_TOO_NARROW"));
+});
+
+test("rules: erkennt Tischabstand zu gering", () => {
+  const plan = repositories.createDemoPlan();
+  const baseTable = { id: "table-a", type: "round", name: "Tisch A", x: 14000, y: 14000, position: { x: 14000, y: 14000 }, widthMm: 1800, depthMm: 1800, diameterMm: 1800, rotationDeg: 0, seatCount: 8, seats: 8 };
+  const validation = rules.validatePlan({
+    ...plan,
+    objects: plan.objects.filter((object) => !["table_area", "seating_area", "generated_aisle"].includes(object.role)),
+    tables: [baseTable, { ...baseTable, id: "table-b", name: "Tisch B", x: 15000, y: 14000, position: { x: 15000, y: 14000 } }],
+    tableSeats: [],
+    tableGroups: []
+  });
+  assert.ok(validation.messages.some((message) => message.code === "TABLE_DISTANCE_TOO_SMALL"));
+});
+
+test("rules: erkennt Block mit zu vielen Reihen", () => {
+  const plan = repositories.createDemoPlan();
+  const block = { id: "block-too-many", name: "Block Test", chairs: [], rowCount: plan.ruleProfile.maxRowsPerBlock + 1, seatCount: 0, bounds: { x: 12000, y: 13000, width: 4000, height: 4000 } };
+  const validation = rules.validatePlan({ ...plan, seatingBlocks: [block] });
+  assert.ok(validation.messages.some((message) => message.code === "SEATING_BLOCK_TOO_MANY_ROWS"));
 });
 
 for (const item of tests) {

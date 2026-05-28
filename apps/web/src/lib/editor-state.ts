@@ -400,7 +400,7 @@ function resizeTableGroup(state: EditorState, tableIds: string[], widthMm?: numb
 }
 
 function moveObject(object: DrawingObject, dxMm: number, dyMm: number): DrawingObject {
-  if (object.geometry.kind !== "rect") {
+  if (object.locked || object.geometry.kind !== "rect") {
     return object;
   }
   return {
@@ -417,7 +417,7 @@ function moveObject(object: DrawingObject, dxMm: number, dyMm: number): DrawingO
 }
 
 function resizeObject(object: DrawingObject, widthMm?: number, heightMm?: number): DrawingObject {
-  if (object.geometry.kind !== "rect") {
+  if (object.locked || object.geometry.kind !== "rect") {
     return object;
   }
   const minimum = getMinimumSize(object.role);
@@ -528,6 +528,9 @@ function getMinimumSize(role: DrawingObject["role"]): { width: number; height: n
   if (role === "no_seat_zone" || role === "stairs" || role === "stage_access" || role === "technical_area" || role === "wheelchair_area") return { width: 500, height: 500 };
   if (role === "escape_route") return { width: 500, height: 500 };
   if (role === "exit") return { width: 300, height: 300 };
+  if (role === "seating_area") return { width: 1000, height: 1000 };
+  if (role === "table_area") return { width: 1000, height: 1000 };
+  if (role === "generated_aisle") return { width: 500, height: 500 };
   if (role === "table") return { width: 500, height: 500 };
   if (role === "seating_block") return { width: 1000, height: 1000 };
   return { width: 100, height: 100 };

@@ -10,8 +10,8 @@ SeatFlow soll später MariaDB nutzen. Es werden keine PostgreSQL- oder PostGIS-F
 - `venues`: Locations und Hallen.
 - `plans`: aktueller Planstand.
 - `plan_versions`: Snapshots historischer Planstände.
-- `drawing_objects`: Raum, Bühne, FOH, Sperrflächen, Fluchtwege, Ausgänge.
-- `seating_blocks`: Stuhlblöcke.
+- `drawing_objects`: Raum, Bühne, FOH, Sperrflächen, Fluchtwege, Ausgänge, Bestuhlungsbereiche, Tischbereiche und generierte Gänge.
+- `seating_blocks`: Stuhlblöcke mit optionaler `area_id` und Bounds.
 - `chairs`: einzelne Stühle.
 - `table_groups`: Tischgruppen.
 - `tables`: Tische.
@@ -33,4 +33,4 @@ Geometrien werden zunächst MariaDB-kompatibel als JSON gespeichert:
 
 ## MVP-Speicherung
 
-Im aktuellen M1/M2-Schritt bleibt MariaDB vorbereitet, aber deaktiviert. `PUT /api/plans/:id` schreibt in das InMemory-Repository. Später kann daraus eine MariaDB-Implementierung entstehen, ohne Frontend, Generatoren oder Rules umzubauen.
+Im aktuellen M3-Schritt bleibt MariaDB vorbereitet, aber deaktiviert. `PUT /api/plans/:id` schreibt in das InMemory-Repository und setzt `updatedAt`, `updatedAtIso`, `lastSavedAt` und `metadata.savedAtIso`. Später soll jede Speicherung zusätzlich als `plan_versions.plan_json` landen, damit Planstände verglichen und wiederhergestellt werden können.

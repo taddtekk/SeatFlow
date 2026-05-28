@@ -10,15 +10,17 @@ const iconByTone = {
 
 export function ValidationMessage({
   affectedObject,
+  onClick,
   title,
   tone
 }: {
   affectedObject: string;
+  onClick?: () => void;
   title: string;
   tone: ValidationTone;
 }) {
   return (
-    <button className={`validation-message validation-message-${tone}`} type="button">
+    <button className={`validation-message validation-message-${tone}`} onClick={onClick} type="button">
       <span className="validation-icon">{iconByTone[tone]}</span>
       <span className="validation-copy">
         <strong>{title}</strong>

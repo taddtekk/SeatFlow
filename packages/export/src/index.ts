@@ -32,11 +32,14 @@ export async function exportPlanPdf(plan: Plan, validationResult: ValidationResu
     doc.text(`Version: ${plan.version}`);
     doc.text(`Datum: ${new Date().toLocaleString("de-DE")}`);
     doc.text(`Status: ${plan.status}`);
+    doc.text(`Regelprofil: ${plan.ruleProfile.name}`);
     doc.moveDown();
     doc.text(`Anzahl Stühle: ${plan.chairs.length}`);
     doc.text(`Anzahl Tische: ${plan.tables.length}`);
+    doc.text(`Anzahl Tischsitze: ${plan.tableSeats.length}`);
     doc.text(`Warnungen: ${validationResult.messages.filter((message) => message.severity === "warning").length}`);
     doc.text(`Fehler: ${validationResult.messages.filter((message) => message.severity === "error").length}`);
+    doc.text("Maßstab: schematische Übersicht, alle Daten intern in Millimetern.");
     doc.moveDown();
 
     doc.fontSize(14).text("Einfache Planansicht");
@@ -65,6 +68,13 @@ export async function exportPlanPdf(plan: Plan, validationResult: ValidationResu
         .fillAndStroke("#2f6f9f", "#2f6f9f")
         .fillOpacity(1);
     }
+    for (const seat of plan.tableSeats) {
+      doc
+        .rect(originX + ((seat.x ?? seat.position.x) - roomRect.x) * scale, originY + ((seat.y ?? seat.position.y) - roomRect.y) * scale, seat.widthMm * scale, seat.depthMm * scale)
+        .fillOpacity(0.45)
+        .fillAndStroke("#fef3c7", "#b45309")
+        .fillOpacity(1);
+    }
     for (const table of plan.tables) {
       const width = (table.type === "round" ? table.diameterMm ?? table.widthMm : table.widthMm) * scale;
       const height = (table.type === "round" ? table.diameterMm ?? table.depthMm : table.depthMm) * scale;
@@ -78,11 +88,21 @@ export async function exportPlanPdf(plan: Plan, validationResult: ValidationResu
     }
 
     doc.y = originY + roomRect.height * scale + 24;
-    doc.fontSize(12).text("Legende: Bühne, FOH, Fluchtwege, Sperrflächen, Ausgänge, Tische und Bestuhlung werden schematisch dargestellt.");
+    doc.fontSize(12).text("Legende");
+    doc.fontSize(10).text("Bühne rot, FOH violett, Fluchtwege grün, Sperrflächen rosa, Bestuhlungsbereiche cyan, Tischbereiche orange, generierte Gänge hellgrün.");
+    doc.moveDown();
+    doc.addPage();
+    doc.fontSize(18).text("Validierungsbericht");
+    doc.moveDown(0.5);
+    writeValidationSection(doc, "Fehler", validationResult.messages.filter((message) => message.severity === "error"));
+    writeValidationSection(doc, "Warnungen", validationResult.messages.filter((message) => message.severity === "warning"));
+    writeValidationSection(doc, "Hinweise", validationResult.messages.filter((message) => message.severity === "info"));
     doc.moveDown();
     doc.fontSize(10).text("Hinweis: Dieser Export ersetzt keine behördliche oder brandschutztechnische Freigabe.");
     doc.end();
   });
+
+  const createdAtIso = new Date().toISOString();
 
   return {
     id: `export-${Date.now()}`,
@@ -90,7 +110,9 @@ export async function exportPlanPdf(plan: Plan, validationResult: ValidationResu
     fileName,
     relativePath,
     url: `${options.appBaseUrl ?? ""}${urlPath}`,
-    createdAtIso: new Date().toISOString()
+    publicUrl: `${options.appBaseUrl ?? ""}${urlPath}`,
+    createdAtIso,
+    createdAt: createdAtIso
   };
 }
 
@@ -99,5 +121,21 @@ function colorForRole(role: string): string {
   if (role === "foh") return "#6d62b7";
   if (role === "escape_route") return "#8ccf8f";
   if (role === "exit") return "#f0c75e";
+  if (role === "seating_area") return "#38bdf8";
+  if (role === "table_area") return "#f59e0b";
+  if (role === "generated_aisle") return "#bbf7d0";
   return "#b26f8f";
+}
+
+function writeValidationSection(doc: PDFKit.PDFDocument, title: string, messages: ValidationResult["messages"]) {
+  doc.fontSize(13).text(`${title}: ${messages.length}`);
+  if (messages.length === 0) {
+    doc.fontSize(10).text("Keine Meldungen.");
+    doc.moveDown(0.4);
+    return;
+  }
+  for (const message of messages.slice(0, 20)) {
+    doc.fontSize(9).text(`- ${message.code ?? message.severity}: ${message.message}`);
+  }
+  doc.moveDown(0.5);
 }

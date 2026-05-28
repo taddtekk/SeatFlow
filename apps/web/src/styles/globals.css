@@ -567,6 +567,42 @@ button {
   text-anchor: middle;
 }
 
+.seating-area rect:first-child {
+  fill: rgba(14, 165, 233, 0.11);
+  stroke: #0284c7;
+  stroke-dasharray: 260 170;
+  stroke-width: 72;
+}
+
+.seating-area text,
+.table-area text,
+.generated-aisle text,
+.block-labels text {
+  dominant-baseline: middle;
+  fill: #0f172a;
+  font-size: 360px;
+  font-weight: 850;
+  text-anchor: middle;
+}
+
+.table-area rect:first-child {
+  fill: rgba(245, 158, 11, 0.13);
+  stroke: #d97706;
+  stroke-dasharray: 260 170;
+  stroke-width: 72;
+}
+
+.generated-aisle rect:first-child {
+  fill: rgba(187, 247, 208, 0.35);
+  stroke: #16a34a;
+  stroke-dasharray: 160 120;
+  stroke-width: 56;
+}
+
+.block-labels text {
+  fill: #0369a1;
+}
+
 .foh text {
   fill: #111827;
 }
@@ -613,6 +649,14 @@ button {
   fill: var(--sf-chair);
   stroke: var(--sf-chair-stroke);
   stroke-width: 35;
+}
+
+.chairs text {
+  dominant-baseline: middle;
+  fill: #0f172a;
+  font-size: 210px;
+  font-weight: 800;
+  text-anchor: middle;
 }
 
 .tables circle,
@@ -777,6 +821,10 @@ button {
   padding: 14px 0;
 }
 
+.generator-panel {
+  border-bottom: 1px solid var(--sf-panel-border);
+}
+
 .additional-properties h3 {
   margin: 0;
 }
@@ -844,6 +892,17 @@ button {
   margin-bottom: 12px;
 }
 
+.validation-group {
+  display: grid;
+  gap: 7px;
+}
+
+.validation-group h3 {
+  color: var(--sf-text-soft);
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+
 .validation-message {
   align-items: center;
   background: transparent;
@@ -874,6 +933,13 @@ button {
 
 .validation-copy small {
   color: var(--sf-text-muted);
+}
+
+.validation-disclaimer {
+  color: var(--sf-text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  margin: 0 0 10px;
 }
 
 .statusbar {
