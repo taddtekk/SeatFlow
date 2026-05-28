@@ -1,0 +1,17 @@
+{
+  "name": "seatflow",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.12.1",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "postbuild": "node scripts/push-after-build.mjs",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}
