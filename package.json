@@ -1,0 +1,41 @@
+{
+  "name": "seatflow",
+  "version": "0.1.0",
+  "private": true,
+  "main": "app.js",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": "20.20.2"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev -w @seatflow/api\" \"npm run dev -w @seatflow/web\"",
+    "build": "npm run build --workspaces --if-present",
+    "postbuild": "node scripts/push-after-build.cjs",
+    "start": "node app.js",
+    "start:plesk": "node app.js",
+    "lint": "npm run typecheck",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "node scripts/no-tests.cjs"
+  },
+  "dependencies": {
+    "@fastify/static": "^8.2.0",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.1",
+    "next": "^15.3.3",
+    "pdfkit": "^0.16.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsx": "^4.19.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.10",
+    "@types/pdfkit": "^0.13.9",
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.4",
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.3"
+  }
+}

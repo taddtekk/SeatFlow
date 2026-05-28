@@ -1,0 +1,22 @@
+{
+  "name": "@seatflow/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@seatflow/geometry": "file:../../packages/geometry",
+    "@seatflow/planner-core": "file:../../packages/planner-core",
+    "@seatflow/repositories": "file:../../packages/repositories",
+    "@seatflow/rules": "file:../../packages/rules",
+    "@seatflow/types": "file:../../packages/types",
+    "next": "^15.3.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
