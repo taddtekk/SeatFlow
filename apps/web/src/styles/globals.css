@@ -152,10 +152,29 @@ button {
 
 .right-sidebar {
   border-left: 1px solid var(--sf-panel-border);
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  overflow: hidden;
   padding: 14px;
+}
+
+.right-sidebar > .sf-panel {
+  background: rgba(16, 28, 43, 0.94);
+  min-height: 0;
+  min-width: 0;
+}
+
+.right-sidebar > .object-list-panel {
+  flex: 0 0 auto;
+  max-height: 260px;
+  overflow: hidden;
+}
+
+.right-sidebar > .properties-panel,
+.right-sidebar > .validation-panel {
+  flex: 1 1 0;
+  overflow: auto;
 }
 
 .workspace {
@@ -1031,7 +1050,7 @@ button {
 .object-list {
   display: grid;
   gap: 12px;
-  max-height: 280px;
+  max-height: 185px;
   overflow: auto;
   padding-right: 2px;
 }
