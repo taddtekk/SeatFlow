@@ -415,9 +415,9 @@ button {
   border: 1px solid var(--sf-canvas-grid-strong);
   border-radius: var(--sf-radius-sm);
   display: block;
-  height: 100%;
+  height: calc(100% - 28px);
   max-height: calc(100vh - 158px);
-  width: 100%;
+  width: calc(100% - 34px);
 }
 
 .ruler {
@@ -841,7 +841,7 @@ button {
   white-space: nowrap;
 }
 
-@media (max-width: 1250px) {
+@media (max-width: 1420px) {
   .topbar {
     grid-template-columns: 210px minmax(0, 1fr);
   }
