@@ -11,12 +11,21 @@ importers:
       '@fastify/cors':
         specifier: ^11.0.1
         version: 11.2.0
+      '@seatflow/geometry':
+        specifier: file:packages/geometry
+        version: link:packages/geometry
       '@seatflow/planner-core':
-        specifier: workspace:*
+        specifier: file:packages/planner-core
         version: link:packages/planner-core
       '@seatflow/rules':
-        specifier: workspace:*
+        specifier: file:packages/rules
         version: link:packages/rules
+      '@seatflow/types':
+        specifier: file:packages/types
+        version: link:packages/types
+      '@seatflow/ui':
+        specifier: file:packages/ui
+        version: link:packages/ui
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
@@ -33,6 +42,9 @@ importers:
         specifier: ^4.19.4
         version: 4.22.3
     devDependencies:
+      '@types/node':
+        specifier: ^22.15.29
+        version: 22.19.19
       concurrently:
         specifier: ^9.1.2
         version: 9.2.1
@@ -46,18 +58,21 @@ importers:
         specifier: ^11.0.1
         version: 11.2.0
       '@seatflow/planner-core':
-        specifier: workspace:*
+        specifier: file:../../packages/planner-core
         version: link:../../packages/planner-core
       '@seatflow/rules':
-        specifier: workspace:*
+        specifier: file:../../packages/rules
         version: link:../../packages/rules
       '@seatflow/types':
-        specifier: workspace:*
+        specifier: file:../../packages/types
         version: link:../../packages/types
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
     devDependencies:
+      '@types/node':
+        specifier: ^22.15.29
+        version: 22.19.19
       tsx:
         specifier: ^4.19.4
         version: 4.22.3
@@ -68,16 +83,16 @@ importers:
   apps/web:
     dependencies:
       '@seatflow/planner-core':
-        specifier: workspace:*
+        specifier: file:../../packages/planner-core
         version: link:../../packages/planner-core
       '@seatflow/rules':
-        specifier: workspace:*
+        specifier: file:../../packages/rules
         version: link:../../packages/rules
       '@seatflow/types':
-        specifier: workspace:*
+        specifier: file:../../packages/types
         version: link:../../packages/types
       '@seatflow/ui':
-        specifier: workspace:*
+        specifier: file:../../packages/ui
         version: link:../../packages/ui
       next:
         specifier: ^15.3.3
@@ -105,7 +120,7 @@ importers:
   packages/geometry:
     dependencies:
       '@seatflow/types':
-        specifier: workspace:*
+        specifier: file:../types
         version: link:../types
     devDependencies:
       typescript:
@@ -115,10 +130,10 @@ importers:
   packages/planner-core:
     dependencies:
       '@seatflow/geometry':
-        specifier: workspace:*
+        specifier: file:../geometry
         version: link:../geometry
       '@seatflow/types':
-        specifier: workspace:*
+        specifier: file:../types
         version: link:../types
     devDependencies:
       typescript:
@@ -128,10 +143,10 @@ importers:
   packages/rules:
     dependencies:
       '@seatflow/geometry':
-        specifier: workspace:*
+        specifier: file:../geometry
         version: link:../geometry
       '@seatflow/types':
-        specifier: workspace:*
+        specifier: file:../types
         version: link:../types
     devDependencies:
       typescript:

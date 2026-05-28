@@ -8,17 +8,20 @@
   },
   "scripts": {
     "dev": "pnpm -r --parallel dev",
-    "build": "pnpm -r build",
+    "build": "node scripts/build.mjs",
     "postbuild": "node scripts/push-after-build.mjs",
     "start": "node app.js",
     "start:api": "pnpm --filter @seatflow/api start",
     "start:web": "pnpm --filter @seatflow/web start",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "node scripts/typecheck.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.1",
-    "@seatflow/planner-core": "workspace:*",
-    "@seatflow/rules": "workspace:*",
+    "@seatflow/geometry": "file:packages/geometry",
+    "@seatflow/planner-core": "file:packages/planner-core",
+    "@seatflow/rules": "file:packages/rules",
+    "@seatflow/types": "file:packages/types",
+    "@seatflow/ui": "file:packages/ui",
     "fastify": "^5.3.3",
     "next": "^15.3.3",
     "react": "^19.0.0",
@@ -26,6 +29,7 @@
     "tsx": "^4.19.4"
   },
   "devDependencies": {
+    "@types/node": "^22.15.29",
     "concurrently": "^9.1.2",
     "typescript": "^5.8.3"
   }

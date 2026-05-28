@@ -10,10 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@seatflow/planner-core": "workspace:*",
-    "@seatflow/rules": "workspace:*",
-    "@seatflow/types": "workspace:*",
-    "@seatflow/ui": "workspace:*",
+    "@seatflow/planner-core": "file:../../packages/planner-core",
+    "@seatflow/rules": "file:../../packages/rules",
+    "@seatflow/types": "file:../../packages/types",
+    "@seatflow/ui": "file:../../packages/ui",
     "next": "^15.3.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

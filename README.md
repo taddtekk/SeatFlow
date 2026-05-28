@@ -52,9 +52,8 @@ Empfohlene Plesk-Einstellungen:
 Build- und Installationsbefehle in Plesk:
 
 ```bash
-npm install -g pnpm@10.12.1
-pnpm install
-pnpm build
+npm install
+npm run build
 ```
 
 Im Plesk-Betrieb sind danach erreichbar:

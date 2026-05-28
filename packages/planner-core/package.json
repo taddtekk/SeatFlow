@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@seatflow/geometry": "workspace:*",
-    "@seatflow/types": "workspace:*"
+    "@seatflow/geometry": "file:../geometry",
+    "@seatflow/types": "file:../types"
   },
   "devDependencies": {
     "typescript": "^5.8.3"
