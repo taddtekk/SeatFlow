@@ -17,20 +17,27 @@ const nextApp = next({
 });
 const nextHandler = nextApp.getRequestHandler();
 
-await nextApp.prepare();
-
-const server = Fastify({ logger: true });
-
-await server.register(cors, {
-  origin: true
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
 });
 
-await registerApiRoutes(server);
-await registerApiRoutes(server, "/api");
+async function main() {
+  await nextApp.prepare();
 
-server.setNotFoundHandler(async (request, reply) => {
-  reply.hijack();
-  await nextHandler(request.raw, reply.raw);
-});
+  const server = Fastify({ logger: true });
 
-await server.listen({ port, host });
+  await server.register(cors, {
+    origin: true
+  });
+
+  await registerApiRoutes(server);
+  await registerApiRoutes(server, "/api");
+
+  server.setNotFoundHandler(async (request, reply) => {
+    reply.hijack();
+    await nextHandler(request.raw, reply.raw);
+  });
+
+  await server.listen({ port, host });
+}
