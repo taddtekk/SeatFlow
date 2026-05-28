@@ -9,5 +9,12 @@ const devPort = process.env.PORT ? config.port : 4000;
 const repositories = createRepositories(config.repositories);
 const server = Fastify({ logger: true });
 
-await registerApiRoutes(server, repositories, config);
-await server.listen({ port: devPort, host: "0.0.0.0" });
+async function startDevServer() {
+  await registerApiRoutes(server, repositories, config);
+  await server.listen({ port: devPort, host: "0.0.0.0" });
+}
+
+startDevServer().catch((error) => {
+  server.log.error(error);
+  process.exit(1);
+});

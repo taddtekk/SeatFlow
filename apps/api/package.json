@@ -2,12 +2,12 @@
   "name": "@seatflow/api",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
+  "main": "dist/dev-server.js",
   "scripts": {
-    "dev": "tsx watch src/dev-server.ts",
-    "build": "tsc --noEmit",
+    "dev": "node --watch dist/dev-server.js",
+    "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "start": "tsx src/dev-server.ts"
+    "start": "node dist/dev-server.js"
   },
   "dependencies": {
     "@fastify/static": "^8.2.0",

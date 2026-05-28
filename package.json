@@ -11,8 +11,9 @@
     "node": "20.20.2"
   },
   "scripts": {
-    "dev": "concurrently -n api,web -c blue,green \"npm run dev -w @seatflow/api\" \"npm run dev -w @seatflow/web\"",
-    "build": "npm run build --workspaces --if-present",
+    "dev": "npm run build:server && concurrently -n api,web -c blue,green \"npm run dev -w @seatflow/api\" \"npm run dev -w @seatflow/web\"",
+    "build": "node scripts/build.cjs",
+    "build:server": "npm run build -w @seatflow/types && npm run build -w @seatflow/geometry && npm run build -w @seatflow/planner-core && npm run build -w @seatflow/rules && npm run build -w @seatflow/repositories && npm run build -w @seatflow/export && npm run build -w @seatflow/api",
     "postbuild": "node scripts/push-after-build.cjs",
     "start": "node app.js",
     "start:plesk": "node app.js",
@@ -27,8 +28,7 @@
     "next": "^15.3.3",
     "pdfkit": "^0.16.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "tsx": "^4.19.4"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.17.10",

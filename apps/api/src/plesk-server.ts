@@ -2,8 +2,7 @@ import fastifyStatic from "@fastify/static";
 import { createRepositories } from "@seatflow/repositories";
 import Fastify from "fastify";
 import next from "next";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { loadConfig } from "./config";
 import { registerApiRoutes } from "./routes";
 
@@ -11,7 +10,7 @@ export async function startPleskServer() {
   const config = loadConfig();
   const repositories = createRepositories(config.repositories);
   const server = Fastify({ logger: true });
-  const rootDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+  const rootDir = join(__dirname, "..", "..", "..");
   const webDir = join(rootDir, "apps", "web");
   const nextApp = next({ dev: false, dir: webDir });
   const nextHandler = nextApp.getRequestHandler();
