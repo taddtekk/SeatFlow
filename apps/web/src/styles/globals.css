@@ -93,6 +93,7 @@ button {
   border: 0;
   color: var(--sf-text-soft);
   display: flex;
+  flex: 0 0 auto;
   gap: 7px;
   min-width: 0;
   padding: 8px 4px;
