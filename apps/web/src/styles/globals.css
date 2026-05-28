@@ -1008,6 +1008,11 @@ button {
   overflow-x: auto;
   overflow-y: hidden;
   padding: 0 14px;
+  scrollbar-width: none;
+}
+
+.statusbar::-webkit-scrollbar {
+  display: none;
 }
 
 .statusbar span {

@@ -37,8 +37,8 @@ interface DragState {
   startRect: Rect;
 }
 
-const BASE_PX_PER_MM = 1100 / 40000;
-const VIEWBOX_MARGIN_MM = 2000;
+const BASE_PX_PER_MM = 1040 / 40000;
+const VIEWBOX_MARGIN_MM = 1500;
 const RULER_SIZE_PX = 30;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2;

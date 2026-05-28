@@ -348,7 +348,7 @@ function moveEntity(state: EditorState, id: string, dxMm: number, dyMm: number):
       tables: state.currentPlan.tables.map((table) => (table.id === id || groupTableIds.has(table.id) ? moveTable(table, dxMm, dyMm) : table)),
       tableSeats: state.currentPlan.tableSeats.map((seat) =>
         seat.tableId === id || groupTableIds.has(seat.tableId)
-          ? { ...seat, position: { x: seat.position.x + dxMm, y: seat.position.y + dyMm } }
+          ? moveTableSeat(seat, dxMm, dyMm)
           : seat
       ),
       updatedAtIso: new Date().toISOString()
@@ -445,6 +445,17 @@ function moveTable(table: Table, dxMm: number, dyMm: number): Table {
   };
 }
 
+function moveTableSeat(seat: TableSeat, dxMm: number, dyMm: number): TableSeat {
+  const x = (seat.x ?? seat.position.x) + dxMm;
+  const y = (seat.y ?? seat.position.y) + dyMm;
+  return {
+    ...seat,
+    x,
+    y,
+    position: { x, y }
+  };
+}
+
 function scaleTable(table: Table, origin: Rect, scaleX: number, scaleY: number): Table {
   const widthMm = Math.max(600, table.widthMm * scaleX);
   const depthMm = Math.max(600, table.depthMm * scaleY);
@@ -463,12 +474,15 @@ function scaleTable(table: Table, origin: Rect, scaleX: number, scaleY: number):
 }
 
 function scaleSeat(seat: TableSeat, origin: Rect, scaleX: number, scaleY: number): TableSeat {
+  const currentX = seat.x ?? seat.position.x;
+  const currentY = seat.y ?? seat.position.y;
+  const x = origin.x + (currentX - origin.x) * scaleX;
+  const y = origin.y + (currentY - origin.y) * scaleY;
   return {
     ...seat,
-    position: {
-      x: origin.x + (seat.position.x - origin.x) * scaleX,
-      y: origin.y + (seat.position.y - origin.y) * scaleY
-    }
+    x,
+    y,
+    position: { x, y }
   };
 }
 
