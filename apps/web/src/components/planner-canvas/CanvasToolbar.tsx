@@ -1,4 +1,4 @@
-import { Maximize2, Minus, Plus, Search } from "lucide-react";
+import { Maximize2, Minus, Plus, Search } from "../ui/Icons";
 import { IconButton } from "../ui/Button";
 
 export function CanvasToolbar() {

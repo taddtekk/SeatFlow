@@ -18,7 +18,7 @@ import {
   Square,
   Table2,
   Trash2
-} from "lucide-react";
+} from "../ui/Icons";
 import type { ToolType } from "@seatflow/types";
 import type { ReactNode } from "react";
 import { ActionButton } from "./ActionButton";

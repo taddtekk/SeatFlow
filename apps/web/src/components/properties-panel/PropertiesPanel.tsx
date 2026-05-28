@@ -1,4 +1,4 @@
-import { SquareStack, Trash2, X } from "lucide-react";
+import { SquareStack, Trash2, X } from "../ui/Icons";
 import { Button, IconButton } from "../ui/Button";
 import { Panel } from "../ui/Panel";
 import { PropertyField } from "./PropertyField";

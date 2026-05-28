@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronRight, Info, OctagonAlert } from "lucide-react";
+import { AlertTriangle, ChevronRight, Info, OctagonAlert } from "../ui/Icons";
 
 type ValidationTone = "error" | "warning" | "info";
 

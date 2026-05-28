@@ -1,4 +1,4 @@
-import { AlertTriangle, Info, OctagonAlert, RefreshCw } from "lucide-react";
+import { AlertTriangle, Info, OctagonAlert, RefreshCw } from "../ui/Icons";
 import { Button } from "../ui/Button";
 import { Panel } from "../ui/Panel";
 import { ValidationMessage } from "./ValidationMessage";
