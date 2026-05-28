@@ -33,6 +33,39 @@ Danach laufen standardmaessig:
 
 Die Planungsdemo ist unter http://localhost:3000/planner erreichbar.
 
+## Plesk-Deployment
+
+SeatFlow ist auf Node.js `20.20.2` vorbereitet. Für Plesk ist der Produktionsstart so gebaut, dass eine einzige Node-App sowohl Next.js als auch die Fastify-API ausliefert.
+
+Empfohlene Plesk-Einstellungen:
+
+- Node.js-Version: `20.20.2`
+- Application root: Repository-Ordner
+- Application startup file: `node_modules/tsx/dist/cli.mjs`
+- Application parameters: `scripts/plesk-server.ts`
+- Document root: Repository-Ordner
+- Environment variables:
+  - `NODE_ENV=production`
+  - `PORT=<von Plesk gesetzter Port oder 3000>`
+  - `SEATFLOW_SKIP_AUTO_PUSH=1`
+
+Build- und Installationsbefehle in Plesk:
+
+```bash
+npm install -g pnpm@10.12.1
+pnpm install
+pnpm build
+```
+
+Im Plesk-Betrieb sind danach erreichbar:
+
+- Web-App: `/`
+- Planungsseite: `/planner`
+- API direkt: `/health`, `/demo-plan`, `/generate-seating`, `/validate-plan`
+- API mit Prefix: `/api/health`, `/api/demo-plan`, `/api/generate-seating`, `/api/validate-plan`
+
+Wichtig: `SEATFLOW_SKIP_AUTO_PUSH=1` verhindert, dass ein Build auf dem Server zurück nach GitHub pusht. Lokal bleibt der Auto-Push nach erfolgreichem Build aktiv.
+
 ## Wichtige Skripte
 
 ```powershell

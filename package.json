@@ -3,15 +3,30 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=20.20.2"
+  },
   "scripts": {
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "postbuild": "node scripts/push-after-build.mjs",
+    "start": "tsx scripts/plesk-server.ts",
+    "start:api": "pnpm --filter @seatflow/api start",
+    "start:web": "pnpm --filter @seatflow/web start",
     "typecheck": "pnpm -r typecheck"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.0.1",
+    "@seatflow/planner-core": "workspace:*",
+    "@seatflow/rules": "workspace:*",
+    "fastify": "^5.3.3",
+    "next": "^15.3.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsx": "^4.19.4"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
-    "tsx": "^4.19.4",
     "typescript": "^5.8.3"
   }
 }

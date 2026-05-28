@@ -7,13 +7,35 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@fastify/cors':
+        specifier: ^11.0.1
+        version: 11.2.0
+      '@seatflow/planner-core':
+        specifier: workspace:*
+        version: link:packages/planner-core
+      '@seatflow/rules':
+        specifier: workspace:*
+        version: link:packages/rules
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      next:
+        specifier: ^15.3.3
+        version: 15.5.18(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.6(react@19.2.6)
+      tsx:
+        specifier: ^4.19.4
+        version: 4.22.3
     devDependencies:
       concurrently:
         specifier: ^9.1.2
         version: 9.2.1
-      tsx:
-        specifier: ^4.19.4
-        version: 4.22.3
       typescript:
         specifier: ^5.8.3
         version: 5.9.3

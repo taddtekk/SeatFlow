@@ -2,9 +2,10 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
 const skipValue = process.env.SEATFLOW_SKIP_AUTO_PUSH;
+const isProductionRuntime = process.env.NODE_ENV === "production";
 
-if (skipValue === "1" || skipValue === "true") {
-  console.log("[auto-push] Übersprungen, weil SEATFLOW_SKIP_AUTO_PUSH gesetzt ist.");
+if (skipValue === "1" || skipValue === "true" || isProductionRuntime) {
+  console.log("[auto-push] Übersprungen. Auf Deployments bitte keinen Build-Push ausführen.");
   process.exit(0);
 }
 
