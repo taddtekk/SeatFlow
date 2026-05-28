@@ -5,11 +5,18 @@ const skipValue = process.env.SEATFLOW_SKIP_AUTO_PUSH;
 const isProductionRuntime = process.env.NODE_ENV === "production";
 
 if (skipValue === "1" || skipValue === "true" || isProductionRuntime) {
-  console.log("[auto-push] Übersprungen. Auf Deployments bitte keinen Build-Push ausführen.");
+  console.log("[auto-push] Uebersprungen. Auf Deployments bitte keinen Build-Push ausfuehren.");
   process.exit(0);
 }
 
 const git = resolveGitBinary();
+const gitRootCheck = runGit(["rev-parse", "--is-inside-work-tree"], { capture: true, allowFailure: true });
+
+if (gitRootCheck.status !== 0 || gitRootCheck.stdout.trim() !== "true") {
+  console.log("[auto-push] Uebersprungen, weil kein Git-Repository gefunden wurde.");
+  process.exit(0);
+}
+
 const branch = runGit(["rev-parse", "--abbrev-ref", "HEAD"], { capture: true }).stdout.trim();
 
 if (!branch || branch === "HEAD") {
@@ -53,8 +60,8 @@ function resolveGitBinary() {
     return windowsGit;
   }
 
-  console.error("[auto-push] Git wurde nicht gefunden.");
-  process.exit(1);
+  console.log("[auto-push] Uebersprungen, weil Git nicht gefunden wurde.");
+  process.exit(0);
 }
 
 function runGit(args, options = {}) {
@@ -64,7 +71,7 @@ function runGit(args, options = {}) {
     stdio: options.capture ? ["ignore", "pipe", "pipe"] : "inherit"
   });
 
-  if (result.status !== 0) {
+  if (result.status !== 0 && !options.allowFailure) {
     const command = `git ${args.join(" ")}`;
     const stderr = result.stderr?.trim();
     console.error(`[auto-push] Fehler bei: ${command}`);
