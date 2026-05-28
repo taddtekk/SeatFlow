@@ -168,6 +168,8 @@ export interface Table {
   seats: number;
   groupId?: string;
   areaId?: string;
+  locked?: boolean;
+  visible?: boolean;
   properties?: Record<string, unknown>;
 }
 
@@ -189,6 +191,8 @@ export interface TableGroup {
   tableIds: string[];
   tables?: Table[];
   seats?: TableSeat[];
+  locked?: boolean;
+  visible?: boolean;
   properties?: Record<string, unknown>;
 }
 
@@ -317,6 +321,7 @@ export type ExportStatus = "idle" | "exporting" | "exported" | "error";
 export interface EditorState {
   currentPlan: Plan;
   selectedObjectId?: string;
+  selectedObjectIds: string[];
   selectedObjectType?: SelectedObjectType;
   activeTool: ToolType;
   validationResults: ValidationResult;
@@ -330,10 +335,15 @@ export interface EditorState {
   dirtyState: boolean;
   zoom: number;
   panOffset: Point;
+  selectionBox?: Rect | null;
   gridSizeMm: number;
   snapToGrid: boolean;
   isDragging: boolean;
   isResizing: boolean;
+  isPanning: boolean;
+  showObjectList: boolean;
+  transientHint?: EditorTransientHint | undefined;
+  recentlyHighlightedObjectId?: string | undefined;
   lastCalculationAt?: string;
   lastCalculationIso?: string;
   exportStatus: ExportStatus;
@@ -346,12 +356,22 @@ export interface EditorState {
 export interface EditorHistoryEntry {
   plan: Plan;
   selectedObjectId?: string;
+  selectedObjectIds?: string[];
   selectedObjectType?: SelectedObjectType;
+}
+
+export interface EditorTransientHint {
+  text: string;
+  x: number;
+  y: number;
 }
 
 export type PlanAction =
   | { type: "SET_PLAN"; plan: Plan }
   | { type: "SELECT_OBJECT"; objectId: string; objectType?: SelectedObjectType }
+  | { type: "SET_SELECTED_OBJECTS"; objectIds: string[] }
+  | { type: "ADD_TO_SELECTION"; objectId: string; objectType?: SelectedObjectType }
+  | { type: "REMOVE_FROM_SELECTION"; objectId: string }
   | { type: "CLEAR_SELECTION" }
   | { type: "SET_ACTIVE_TOOL"; tool: ToolType }
   | { type: "UPDATE_ROOM"; room: Room }
@@ -361,8 +381,14 @@ export type PlanAction =
   | { type: "UPDATE_OBJECT"; objectId: string; changes: Partial<DrawingObject> }
   | { type: "UPDATE_TABLE"; tableId: string; changes: Partial<Table> }
   | { type: "DELETE_OBJECT"; objectId: string }
+  | { type: "DELETE_OBJECTS"; objectIds: string[] }
   | { type: "MOVE_OBJECT"; objectId: string; dxMm: number; dyMm: number }
+  | { type: "MOVE_OBJECTS"; objectIds: string[]; dxMm: number; dyMm: number }
   | { type: "RESIZE_OBJECT"; objectId: string; widthMm?: number; heightMm?: number }
+  | { type: "LOCK_OBJECTS"; objectIds: string[] }
+  | { type: "UNLOCK_OBJECTS"; objectIds: string[] }
+  | { type: "SET_OBJECTS_VISIBLE"; objectIds: string[]; visible: boolean }
+  | { type: "DUPLICATE_SELECTION" }
   | { type: "SET_CHAIRS"; chairs: Chair[]; seatingBlocks: SeatingBlock[] }
   | { type: "SET_TABLES"; tables: Table[]; tableGroups: TableGroup[]; tableSeats: TableSeat[] }
   | { type: "SET_VALIDATION_RESULTS"; validationResults: ValidationResult }
@@ -370,12 +396,16 @@ export type PlanAction =
   | { type: "TOGGLE_LAYER"; layer: "showChairs" | "showTables" | "showEscapeRoutes" | "showNoSeatZones" | "showGrid" | "showMeasurements" | "showValidation"; value?: boolean }
   | { type: "SET_ZOOM"; zoom: number }
   | { type: "SET_PAN"; panOffset: Point }
+  | { type: "SET_SELECTION_BOX"; selectionBox: Rect | null }
   | { type: "SET_SNAP_TO_GRID"; snapToGrid: boolean }
   | { type: "SET_GRID_SIZE"; gridSizeMm: number }
+  | { type: "SET_SHOW_OBJECT_LIST"; showObjectList: boolean }
+  | { type: "SET_TRANSIENT_HINT"; transientHint?: EditorTransientHint | undefined }
+  | { type: "HIGHLIGHT_OBJECT"; objectId?: string | undefined }
   | { type: "SET_SAVE_STATUS"; saveStatus: SaveStatus }
   | { type: "SET_EXPORT_STATUS"; exportStatus: ExportStatus }
   | { type: "SET_LAST_CALCULATION_AT"; lastCalculationAt: string }
-  | { type: "SET_INTERACTION_FLAGS"; isDragging?: boolean; isResizing?: boolean }
+  | { type: "SET_INTERACTION_FLAGS"; isDragging?: boolean; isResizing?: boolean; isPanning?: boolean }
   | { type: "UNDO" }
   | { type: "REDO" };
 

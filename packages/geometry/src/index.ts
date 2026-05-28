@@ -12,8 +12,20 @@ export function rectsOverlap(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
+export function rectsIntersect(a: Rect, b: Rect): boolean {
+  return rectsOverlap(a, b);
+}
+
+export function rectIntersectsRect(a: Rect, b: Rect): boolean {
+  return rectsOverlap(a, b);
+}
+
 export function rectInsideRect(inner: Rect, outer: Rect): boolean {
   return inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height;
+}
+
+export function rectContainsRect(outer: Rect, inner: Rect): boolean {
+  return rectInsideRect(inner, outer);
 }
 
 export function expandRect(rect: Rect, amountMm: number): Rect {
@@ -31,6 +43,22 @@ export function shrinkRect(rect: Rect, amountMm: number): Rect {
     y: rect.y + amountMm,
     width: Math.max(0, rect.width - amountMm * 2),
     height: Math.max(0, rect.height - amountMm * 2)
+  };
+}
+
+export function moveRect(rect: Rect, dxMm: number, dyMm: number): Rect {
+  return {
+    ...rect,
+    x: rect.x + dxMm,
+    y: rect.y + dyMm
+  };
+}
+
+export function resizeRect(rect: Rect, widthMm?: number, heightMm?: number): Rect {
+  return {
+    ...rect,
+    ...(widthMm === undefined ? {} : { width: widthMm }),
+    ...(heightMm === undefined ? {} : { height: heightMm })
   };
 }
 
@@ -207,6 +235,29 @@ export function getRectCenter(rect: Rect): Point {
     x: rect.x + rect.width / 2,
     y: rect.y + rect.height / 2
   };
+}
+
+export function getBoundingRect(rects: Rect[]): Rect | null {
+  if (rects.length === 0) {
+    return null;
+  }
+  const minX = Math.min(...rects.map((rect) => rect.x));
+  const minY = Math.min(...rects.map((rect) => rect.y));
+  const maxX = Math.max(...rects.map((rect) => rect.x + rect.width));
+  const maxY = Math.max(...rects.map((rect) => rect.y + rect.height));
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+export function getRectsBoundingBox(rects: Rect[]): Rect | null {
+  return getBoundingRect(rects);
+}
+
+export function isRectInsideSelection(rect: Rect, selection: Rect): boolean {
+  return rectInsideRect(rect, selection);
+}
+
+export function rectIntersectsSelection(rect: Rect, selection: Rect): boolean {
+  return rectsOverlap(rect, selection);
 }
 
 export function snapValueToGrid(value: number, gridSizeMm: number): number {

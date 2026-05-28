@@ -9,10 +9,13 @@ import { StatusBar } from "../status-bar/StatusBar";
 import { ToolSidebar } from "../tool-sidebar/ToolSidebar";
 import { TopBar } from "../top-bar/TopBar";
 import { ValidationPanel } from "../validation/ValidationPanel";
+import { ObjectListPanel } from "../object-list/ObjectListPanel";
 
 export function AppShell({ initialPlan }: { initialPlan: Plan }) {
   const [state, dispatch] = useReducer(editorReducer, initialPlan, createInitialEditorState);
   const [notice, setNotice] = useState<string | null>(null);
+  const [fitRequest, setFitRequest] = useState(0);
+  const [centerTarget, setCenterTarget] = useState<{ id: string; nonce: number } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -48,12 +51,13 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (isEditableTarget(event.target) && (event.key === "Delete" || event.key === "Backspace" || event.key === "Escape")) {
+      if (isEditableTarget(event.target)) {
         return;
       }
-      if ((event.key === "Delete" || event.key === "Backspace") && state.selectedObjectId) {
+      const selectedObjectIds = state.selectedObjectIds;
+      if ((event.key === "Delete" || event.key === "Backspace") && selectedObjectIds.length > 0) {
         event.preventDefault();
-        dispatch({ type: "DELETE_OBJECT", objectId: state.selectedObjectId });
+        dispatch({ type: "DELETE_OBJECTS", objectIds: selectedObjectIds });
       }
       if (event.key === "Escape") {
         event.preventDefault();
@@ -68,6 +72,26 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
         event.preventDefault();
         void exportPdf();
       }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
+        event.preventDefault();
+        dispatch({ type: "SET_SELECTED_OBJECTS", objectIds: getSelectableObjectIds(state.currentPlan) });
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") {
+        event.preventDefault();
+        dispatch({ type: "DUPLICATE_SELECTION" });
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key === "0") {
+        event.preventDefault();
+        setFitRequest((value) => value + 1);
+      }
+      if ((event.ctrlKey || event.metaKey) && (event.key === "+" || event.key === "=")) {
+        event.preventDefault();
+        dispatch({ type: "SET_ZOOM", zoom: state.zoom + 0.1 });
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key === "-") {
+        event.preventDefault();
+        dispatch({ type: "SET_ZOOM", zoom: state.zoom - 0.1 });
+      }
       const isUndo = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && !event.shiftKey;
       const isRedo = ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") || ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "z");
       if (isUndo) {
@@ -81,7 +105,7 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [state.currentPlan, state.selectedObjectId]);
+  }, [state.currentPlan, state.selectedObjectId, state.selectedObjectIds, state.zoom]);
 
   useEffect(() => {
     if (!state.dirtyState) {
@@ -262,8 +286,8 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
       return;
     }
     dispatch({ type: "SET_ACTIVE_TOOL", tool });
-    if (tool === "delete_object" && state.selectedObjectId) {
-      dispatch({ type: "DELETE_OBJECT", objectId: state.selectedObjectId });
+    if (tool === "delete_object" && state.selectedObjectIds.length > 0) {
+      dispatch({ type: "DELETE_OBJECTS", objectIds: state.selectedObjectIds });
     }
   }
 
@@ -306,7 +330,32 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
     dispatch({ type: "UPDATE_OBJECT", objectId: id, changes: { geometry: updateObjectRect(object, rect).geometry } });
   }
 
+  function selectObject(objectId?: string, additive = false) {
+    if (!objectId) {
+      dispatch({ type: "CLEAR_SELECTION" });
+      return;
+    }
+    const selected = state.selectedObjectIds.includes(objectId);
+    if (additive && selected) {
+      dispatch({ type: "REMOVE_FROM_SELECTION", objectId });
+      return;
+    }
+    if (additive) {
+      dispatch({ type: "ADD_TO_SELECTION", objectId });
+      return;
+    }
+    dispatch({ type: "SELECT_OBJECT", objectId });
+  }
+
+  function centerObjectInViewport(objectId: string) {
+    setCenterTarget({ id: objectId, nonce: Date.now() });
+    dispatch({ type: "HIGHLIGHT_OBJECT", objectId });
+    window.setTimeout(() => dispatch({ type: "HIGHLIGHT_OBJECT", objectId: undefined }), 900);
+  }
+
   const projectName = String(state.currentPlan.metadata.projectName ?? (state.currentPlan.projectId === "project-demo" ? "Sommerkonzert 2026" : state.currentPlan.projectId));
+  const selectedObjectIds = state.selectedObjectIds;
+  const lockedSelection = selectedObjectIds.some((id) => isSelectedEntityLocked(state.currentPlan, id));
 
   return (
     <main className="seatflow-app">
@@ -325,23 +374,31 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
       <div className="editor-shell">
         <ToolSidebar
           activeTool={state.activeTool}
+          gridSizeMm={state.gridSizeMm}
           layers={layers}
           onExportPdf={exportPdf}
           onGenerateLayouts={generateAllLayouts}
           onGenerateTables={generateTables}
           onRecalculate={recalculateSeating}
+          onSetGridSize={(gridSizeMm) => dispatch({ type: "SET_GRID_SIZE", gridSizeMm })}
+          onSetSnapToGrid={(snapToGrid) => dispatch({ type: "SET_SNAP_TO_GRID", snapToGrid })}
+          onToggleObjectList={() => dispatch({ type: "SET_SHOW_OBJECT_LIST", showObjectList: !state.showObjectList })}
           onToggleLayer={(layer) => dispatch({ type: "TOGGLE_LAYER", layer })}
           onToolChange={handleToolChange}
+          showObjectList={state.showObjectList}
+          snapToGrid={state.snapToGrid}
         />
         <div className="workspace">
           <PlannerCanvas
             activeTool={state.activeTool}
+            centerTarget={centerTarget}
+            fitRequest={fitRequest}
             gridSizeMm={state.gridSizeMm}
             layers={layers}
             onAddAtPoint={addAtPoint}
             onDelete={(id) => dispatch({ type: "DELETE_OBJECT", objectId: id })}
             onInteractionChange={(flags) => dispatch({ type: "SET_INTERACTION_FLAGS", ...flags })}
-            onMove={(id, dxMm, dyMm) => dispatch({ type: "MOVE_OBJECT", objectId: id, dxMm, dyMm })}
+            onMove={(ids, dxMm, dyMm) => dispatch({ type: "MOVE_OBJECTS", objectIds: ids, dxMm, dyMm })}
             onResize={(id, widthMm, heightMm) => {
               const action = {
                 type: "RESIZE_OBJECT" as const,
@@ -351,30 +408,71 @@ export function AppShell({ initialPlan }: { initialPlan: Plan }) {
               };
               dispatch(action);
             }}
-            onSelect={(objectId, objectType) => dispatch(objectId ? { type: "SELECT_OBJECT", objectId, ...(objectType ? { objectType } : {}) } : { type: "CLEAR_SELECTION" })}
+            onSelect={(objectId, objectType, additive) => {
+              if (!objectId) {
+                dispatch({ type: "CLEAR_SELECTION" });
+                return;
+              }
+              const selected = state.selectedObjectIds.includes(objectId);
+              if (additive && selected) {
+                dispatch({ type: "REMOVE_FROM_SELECTION", objectId });
+                return;
+              }
+              if (additive) {
+                dispatch({ type: "ADD_TO_SELECTION", objectId, ...(objectType ? { objectType } : {}) });
+                return;
+              }
+              dispatch({ type: "SELECT_OBJECT", objectId, ...(objectType ? { objectType } : {}) });
+            }}
+            onSetSelectedObjects={(objectIds) => dispatch({ type: "SET_SELECTED_OBJECTS", objectIds })}
+            onSetSelectionBox={(selectionBox) => dispatch({ type: "SET_SELECTION_BOX", selectionBox })}
+            onSetTransientHint={(transientHint) => dispatch({ type: "SET_TRANSIENT_HINT", transientHint })}
             onZoomChange={(zoom) => dispatch({ type: "SET_ZOOM", zoom })}
             plan={state.currentPlan}
+            recentlyHighlightedObjectId={state.recentlyHighlightedObjectId}
             selectedObjectId={state.selectedObjectId}
+            selectedObjectIds={state.selectedObjectIds}
+            selectionBox={state.selectionBox}
             snapToGrid={state.snapToGrid}
+            transientHint={state.transientHint}
             validationResults={state.validationResults}
             zoom={state.zoom}
           />
-          <StatusBar gridSizeMm={state.gridSizeMm} lastCalculationIso={state.lastCalculationAt ?? state.lastCalculationIso} plan={state.currentPlan} saveStatus={state.saveStatus} validationResults={state.validationResults} zoom={state.zoom} />
+          <StatusBar activeTool={state.activeTool} gridSizeMm={state.gridSizeMm} lastCalculationIso={state.lastCalculationAt ?? state.lastCalculationIso} lockedSelection={lockedSelection} plan={state.currentPlan} saveStatus={state.saveStatus} selectedCount={selectedObjectIds.length} snapToGrid={state.snapToGrid} validationResults={state.validationResults} zoom={state.zoom} />
           {notice ? <div className="toast-status">{notice}</div> : null}
         </div>
         <aside className="right-sidebar" aria-label="Eigenschaften und Validierung">
+          {state.showObjectList ? (
+            <ObjectListPanel
+              onCenterObject={centerObjectInViewport}
+              onSelectObject={(objectId, additive) => selectObject(objectId, additive)}
+              onSetVisible={(objectIds, visible) => dispatch({ type: "SET_OBJECTS_VISIBLE", objectIds, visible })}
+              onToggleLock={(objectIds, locked) => dispatch(locked ? { type: "LOCK_OBJECTS", objectIds } : { type: "UNLOCK_OBJECTS", objectIds })}
+              plan={state.currentPlan}
+              selectedObjectIds={state.selectedObjectIds}
+            />
+          ) : null}
           <PropertiesPanel
             onDelete={(id) => dispatch({ type: "DELETE_OBJECT", objectId: id })}
+            onDeleteMany={(objectIds) => dispatch({ type: "DELETE_OBJECTS", objectIds })}
+            onDuplicate={() => dispatch({ type: "DUPLICATE_SELECTION" })}
             onGenerateAll={generateAllLayouts}
             onGenerateForSelected={generateSelectedArea}
+            onLock={(objectIds) => dispatch({ type: "LOCK_OBJECTS", objectIds })}
             onSelectNone={() => dispatch({ type: "CLEAR_SELECTION" })}
+            onSetVisible={(objectIds, visible) => dispatch({ type: "SET_OBJECTS_VISIBLE", objectIds, visible })}
+            onUnlock={(objectIds) => dispatch({ type: "UNLOCK_OBJECTS", objectIds })}
             onUpdateObject={updateObject}
             onUpdateObjectRect={updateObjectRectValue}
             onUpdateTable={(tableId, changes) => dispatch({ type: "UPDATE_TABLE", tableId, changes })}
             plan={state.currentPlan}
             selectedObjectId={state.selectedObjectId}
+            selectedObjectIds={state.selectedObjectIds}
           />
-          <ValidationPanel onSelectObject={(objectId) => dispatch({ type: "SELECT_OBJECT", objectId })} onValidate={validateCurrentPlan} validationResults={state.validationResults} />
+          <ValidationPanel onSelectObject={(objectId) => {
+            dispatch({ type: "SELECT_OBJECT", objectId });
+            centerObjectInViewport(objectId);
+          }} onValidate={validateCurrentPlan} validationResults={state.validationResults} />
         </aside>
       </div>
     </main>
@@ -526,4 +624,27 @@ function clearLocalDraft(planId: string) {
 
 function isEditableTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || (target instanceof HTMLElement && target.isContentEditable);
+}
+
+function getSelectableObjectIds(plan: Plan): string[] {
+  const objectIds = plan.objects.filter((object) => object.visible !== false && object.locked !== true).map((object) => object.id);
+  const tableIds = plan.tables.filter((table) => table.visible !== false && table.locked !== true).map((table) => table.id);
+  const groupIds = plan.tableGroups.filter((group) => group.visible !== false && group.locked !== true).map((group) => group.id);
+  return [...objectIds, ...tableIds, ...groupIds];
+}
+
+function isSelectedEntityLocked(plan: Plan, id: string): boolean {
+  if (plan.room.id === id) {
+    return true;
+  }
+  const object = plan.objects.find((item) => item.id === id);
+  if (object) {
+    return object.locked === true;
+  }
+  const table = plan.tables.find((item) => item.id === id);
+  if (table) {
+    return table.locked === true;
+  }
+  const group = plan.tableGroups.find((item) => item.id === id);
+  return group?.locked === true;
 }

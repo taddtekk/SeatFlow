@@ -4,6 +4,8 @@
 
 Der Editor-State ist eine UI-Schicht über dem Plan-Modell. Er speichert den aktuellen Plan, aktive Werkzeuge, Auswahl, Zoom, Layer-Sichtbarkeit, Dirty-State und Validierungsergebnisse. Der Plan bleibt die fachliche Quelle; Interaktionen schreiben Änderungen in `DrawingObject`, `Table`, `TableGroup`, `Chair` und `ValidationResult`.
 
+Seit M3.2 speichert der Editor Mehrfachauswahl über `selectedObjectIds`, einen temporären `selectionBox`-Rect, Pan-/Drag-/Resize-Flags, Rastergröße, Snap-Status, Objektlisten-Sichtbarkeit und flüchtige Drag-/Resize-Hinweise. `selectedObjectId` bleibt als erster Eintrag der Auswahl erhalten, damit bestehende Einzelauswahl-Komponenten kompatibel bleiben.
+
 In M3 sind alle bearbeitbaren Geometrien rechteckig. Polygone bleiben im Typmodell vorbereitet, werden aber noch nicht interaktiv bearbeitet.
 
 Für Undo/Redo speichert der Editor kompakte History-Einträge mit Plan-Snapshot und Auswahl. Diese History ist nur clientseitig und wird nicht in der späteren Datenbank persistiert.
@@ -35,6 +37,8 @@ Interaktive Geometrien sind aktuell Rechtecke:
 ```
 
 Alle Werte sind Millimeter. Polygone bleiben vorbereitet, werden aber noch nicht gezeichnet oder bearbeitet.
+
+`DrawingObject`, `Table` und `TableGroup` können `locked` und `visible` tragen. `locked=true` schützt Entitäten vor Verschieben, Skalieren und Löschen. `visible=false` blendet sie in der Planfläche aus; die Objektliste bleibt der Ort, um sie wieder sichtbar zu machen. Der Raum gilt im Editor als gesperrt.
 
 ## Objektrollen
 

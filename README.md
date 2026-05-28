@@ -14,6 +14,10 @@ Der Editor unterstützt Undo/Redo über die Topbar sowie `Ctrl/Cmd+Z` und `Ctrl/
 
 Die Planfläche läuft in einem eigenen scrollbaren Editor-Viewport. Das SVG wird nicht mehr per CSS `transform: scale(...)` vergrößert, sondern erhält echte Pixelmaße aus `viewBox`, zentralem `basePxPerMm` und aktuellem Zoom. Dadurch bleiben linke Werkzeugleiste, rechte Eigenschaftenleiste und Statusbar im Layoutfluss, während nur der Canvas-Viewport scrollt. Der Fit-Button berechnet den Zoom aus der verfügbaren Viewportgröße.
 
+## M3.2 Editor-Bedienkomfort
+
+Der Planner unterstützt jetzt präziseres Arbeiten: Shift-Klick und Auswahlrahmen wählen mehrere Objekte, mehrere ausgewählte Objekte können gelöscht, gesperrt, entsperrt, ein- oder ausgeblendet werden. Die Objektliste zeigt Raum, Sicherheitsobjekte, Bestuhlungsbereiche, Tischbereiche, Tische und Gruppen mit Sichtbarkeit und Lock-Status. Der Canvas kann per Space+Drag oder mittlerer Maustaste gepannt werden; Ctrl/Cmd+Mausrad zoomt mit stabiler Scrollposition. Rastergröße und Snap-to-grid sind in der linken Leiste einstellbar, Shift deaktiviert Snapping temporär beim Verschieben oder Skalieren.
+
 SeatFlow ist ein webbasiertes Planungstool für Veranstaltungsplanung. Es soll Bestuhlungspläne, Tischpläne und Rettungswegepläne maßstäblich in Millimetern erstellen, Sperrflächen und Fluchtwege berücksichtigen und später regelbasiert prüfen.
 
 Wichtig: SeatFlow ersetzt keine behördliche oder brandschutztechnische Freigabe. Validierungen sind technische Hinweise nach dem gewählten Regelprofil.
@@ -92,6 +96,11 @@ docs                  Entwicklerdokumentation
 - Demo-Plan unter `/planner`
 - Raum, Bühne, FOH, Sperrflächen, Fluchtwege, Ausgänge, Stühle, Tische, Tischsitze und Tischgruppen aus Plan-Daten gerendert
 - Auswahl, Drag & Drop, rechteckiges Resize, Löschen und Eigenschaftenbearbeitung
+- Mehrfachauswahl per Shift-Klick und Auswahlrahmen, inklusive Multi-Aktionen
+- Objektliste mit Auswahl, Zentrieren, Sperren/Entsperren und Anzeigen/Ausblenden
+- Pan per Space+Drag oder mittlerer Maustaste, Ctrl/Cmd+Mausrad-Zoom
+- Snap-to-grid mit einstellbarer Rastergröße und Shift-Bypass
+- Shortcuts für Speichern, Auswahl, Löschen, Duplizieren, Zoom und Fit-to-screen
 - Layer-Toggles für Stühle, Tische, Fluchtwege, Sperrflächen, Raster, Maße und Validierung
 - stabiler scrollbarer Canvas-Viewport mit Zoom-Stufen, 100-%-Reset und Fit-to-screen
 - Bestuhlungsbereiche mit Zielplätzen, Stuhlmaßen, Reihenabstand, Mittelgang und Querwegen

@@ -7,6 +7,7 @@ export function createInitialEditorState(plan: Plan): EditorState {
   const selectedObjectId = plan.objects.find((object) => object.role === "stage")?.id;
   const state: EditorState = {
     currentPlan: plan,
+    selectedObjectIds: selectedObjectId ? [selectedObjectId] : [],
     activeTool: "select",
     validationResults: plan.validationResult ?? { valid: true, messages: [] },
     showChairs: true,
@@ -19,10 +20,13 @@ export function createInitialEditorState(plan: Plan): EditorState {
     dirtyState: false,
     zoom: 1,
     panOffset: { x: 0, y: 0 },
+    selectionBox: null,
     gridSizeMm: 250,
     snapToGrid: true,
     isDragging: false,
     isResizing: false,
+    isPanning: false,
+    showObjectList: true,
     exportStatus: "idle",
     saveStatus: "saved",
     lastCalculationAt: plan.updatedAtIso,
@@ -42,6 +46,8 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         validationResults: action.plan.validationResults ?? action.plan.validationResult ?? state.validationResults,
         dirtyState: false,
         saveStatus: "saved",
+        selectedObjectIds: [],
+        selectionBox: null,
         lastCalculationAt: action.plan.updatedAtIso,
         lastCalculationIso: action.plan.updatedAtIso,
         undoStack: [],
@@ -53,6 +59,12 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
       return redo(state);
     case "SELECT_OBJECT":
       return withSelection(state, action.objectId, action.objectType ?? inferSelectedObjectType(state.currentPlan, action.objectId));
+    case "SET_SELECTED_OBJECTS":
+      return withSelections(state, action.objectIds);
+    case "ADD_TO_SELECTION":
+      return withSelections(state, [...state.selectedObjectIds, action.objectId]);
+    case "REMOVE_FROM_SELECTION":
+      return withSelections(state, state.selectedObjectIds.filter((id) => id !== action.objectId));
     case "CLEAR_SELECTION":
       return withoutSelection(state);
     case "SET_ACTIVE_TOOL":
@@ -64,6 +76,7 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
       return withHistory(state, {
         ...state,
         selectedObjectId: action.room.id,
+        selectedObjectIds: [action.room.id],
         activeTool: "select",
         currentPlan: {
           ...state.currentPlan,
@@ -76,6 +89,7 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         ...state,
         activeTool: "select",
         selectedObjectId: action.object.id,
+        selectedObjectIds: [action.object.id],
         currentPlan: {
           ...state.currentPlan,
           objects: [...state.currentPlan.objects, action.object],
@@ -87,6 +101,7 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         ...state,
         activeTool: "select",
         selectedObjectId: action.table.id,
+        selectedObjectIds: [action.table.id],
         currentPlan: {
           ...state.currentPlan,
           tables: [...state.currentPlan.tables, action.table],
@@ -99,6 +114,7 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         ...state,
         activeTool: "select",
         selectedObjectId: action.tableGroup.id,
+        selectedObjectIds: [action.tableGroup.id],
         currentPlan: {
           ...state.currentPlan,
           tableGroups: [...state.currentPlan.tableGroups, action.tableGroup],
@@ -136,10 +152,22 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
     }
     case "DELETE_OBJECT":
       return withHistory(state, deleteEntity(state, action.objectId));
+    case "DELETE_OBJECTS":
+      return withHistory(state, deleteEntities(state, action.objectIds));
     case "MOVE_OBJECT":
       return withHistory(state, moveEntity(state, action.objectId, action.dxMm, action.dyMm));
+    case "MOVE_OBJECTS":
+      return withHistory(state, moveEntities(state, action.objectIds, action.dxMm, action.dyMm));
     case "RESIZE_OBJECT":
       return withHistory(state, resizeEntity(state, action.objectId, action.widthMm, action.heightMm));
+    case "LOCK_OBJECTS":
+      return withHistory(state, setEntityLock(state, action.objectIds, true));
+    case "UNLOCK_OBJECTS":
+      return withHistory(state, setEntityLock(state, action.objectIds, false));
+    case "SET_OBJECTS_VISIBLE":
+      return withHistory(state, setEntityVisibility(state, action.objectIds, action.visible));
+    case "DUPLICATE_SELECTION":
+      return withHistory(state, duplicateSelection(state));
     case "SET_CHAIRS":
       return withHistory(state, {
         ...state,
@@ -198,6 +226,11 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
         ...state,
         panOffset: action.panOffset
       };
+    case "SET_SELECTION_BOX":
+      return {
+        ...state,
+        selectionBox: action.selectionBox
+      };
     case "SET_SNAP_TO_GRID":
       return {
         ...state,
@@ -207,6 +240,21 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
       return {
         ...state,
         gridSizeMm: Math.max(50, action.gridSizeMm)
+      };
+    case "SET_SHOW_OBJECT_LIST":
+      return {
+        ...state,
+        showObjectList: action.showObjectList
+      };
+    case "SET_TRANSIENT_HINT":
+      return {
+        ...state,
+        transientHint: action.transientHint
+      };
+    case "HIGHLIGHT_OBJECT":
+      return {
+        ...state,
+        recentlyHighlightedObjectId: action.objectId
       };
     case "SET_SAVE_STATUS":
       return {
@@ -228,7 +276,8 @@ export function editorReducer(state: EditorState, action: PlanAction): EditorSta
       return {
         ...state,
         ...(action.isDragging === undefined ? {} : { isDragging: action.isDragging }),
-        ...(action.isResizing === undefined ? {} : { isResizing: action.isResizing })
+        ...(action.isResizing === undefined ? {} : { isResizing: action.isResizing }),
+        ...(action.isPanning === undefined ? {} : { isPanning: action.isPanning })
       };
     default:
       return state;
@@ -282,7 +331,7 @@ function redo(state: EditorState): EditorState {
 }
 
 function createHistoryEntry(state: EditorState): EditorHistoryEntry {
-  const entry: EditorHistoryEntry = { plan: state.currentPlan };
+  const entry: EditorHistoryEntry = { plan: state.currentPlan, selectedObjectIds: state.selectedObjectIds };
   if (!state.selectedObjectId) {
     return entry;
   }
@@ -299,6 +348,7 @@ function applyHistoryEntry(state: EditorState, entry: EditorHistoryEntry, undoSt
     currentPlan: entry.plan,
     validationResults: entry.plan.validationResults ?? entry.plan.validationResult ?? state.validationResults,
     dirtyState: true,
+    selectedObjectIds: entry.selectedObjectIds ?? (entry.selectedObjectId ? [entry.selectedObjectId] : []),
     undoStack,
     redoStack
   };
@@ -308,36 +358,65 @@ function applyHistoryEntry(state: EditorState, entry: EditorHistoryEntry, undoSt
 }
 
 function deleteEntity(state: EditorState, id: string): EditorState {
+  if (isEntityLocked(state.currentPlan, id)) {
+    return state;
+  }
   const group = state.currentPlan.tableGroups.find((tableGroup) => tableGroup.id === id);
   const tableIdsToDelete = new Set(group ? group.tableIds : [id]);
+  const deletedTableIds = new Set(state.currentPlan.tables.filter((table) => tableIdsToDelete.has(table.id) && !table.locked).map((table) => table.id));
 
-  return withoutSelection({
+  return withSelections({
     ...state,
     currentPlan: {
       ...state.currentPlan,
-      objects: state.currentPlan.objects.filter((object) => object.id !== id),
-      tableGroups: state.currentPlan.tableGroups.filter((tableGroup) => tableGroup.id !== id),
-      tables: state.currentPlan.tables.filter((table) => !tableIdsToDelete.has(table.id)),
-      tableSeats: state.currentPlan.tableSeats.filter((seat) => !tableIdsToDelete.has(seat.tableId)),
+      objects: state.currentPlan.objects.filter((object) => object.id !== id || object.locked),
+      tableGroups: state.currentPlan.tableGroups.filter((tableGroup) => tableGroup.id !== id || tableGroup.locked),
+      tables: state.currentPlan.tables.filter((table) => !deletedTableIds.has(table.id)),
+      tableSeats: state.currentPlan.tableSeats.filter((seat) => !deletedTableIds.has(seat.tableId)),
       updatedAtIso: new Date().toISOString()
     }
-  });
+  }, state.selectedObjectIds.filter((selectedId) => selectedId !== id && !deletedTableIds.has(selectedId)));
+}
+
+function deleteEntities(state: EditorState, ids: string[]): EditorState {
+  return ids.reduce((next, id) => deleteEntity(next, id), state);
 }
 
 function withoutSelection(state: EditorState): EditorState {
   const { selectedObjectId: _selectedObjectId, selectedObjectType: _selectedObjectType, ...rest } = state;
-  return rest;
+  return { ...rest, selectedObjectIds: [], selectionBox: null };
 }
 
 function withSelection(state: EditorState, selectedObjectId: string, selectedObjectType?: SelectedObjectType): EditorState {
   return {
     ...state,
     selectedObjectId,
+    selectedObjectIds: [selectedObjectId],
+    selectionBox: null,
+    ...(selectedObjectType ? { selectedObjectType } : {})
+  };
+}
+
+function withSelections(state: EditorState, objectIds: string[]): EditorState {
+  const selectedObjectIds = [...new Set(objectIds)].filter(Boolean);
+  const selectedObjectId = selectedObjectIds[0];
+  if (!selectedObjectId) {
+    return withoutSelection(state);
+  }
+  const selectedObjectType = inferSelectedObjectType(state.currentPlan, selectedObjectId);
+  return {
+    ...state,
+    selectedObjectId,
+    selectedObjectIds,
+    selectionBox: null,
     ...(selectedObjectType ? { selectedObjectType } : {})
   };
 }
 
 function moveEntity(state: EditorState, id: string, dxMm: number, dyMm: number): EditorState {
+  if (isEntityLocked(state.currentPlan, id)) {
+    return state;
+  }
   const group = state.currentPlan.tableGroups.find((tableGroup) => tableGroup.id === id);
   const groupTableIds = new Set(group?.tableIds ?? []);
   return {
@@ -356,7 +435,15 @@ function moveEntity(state: EditorState, id: string, dxMm: number, dyMm: number):
   };
 }
 
+function moveEntities(state: EditorState, ids: string[], dxMm: number, dyMm: number): EditorState {
+  const uniqueIds = [...new Set(ids)];
+  return uniqueIds.reduce((next, id) => moveEntity(next, id, dxMm, dyMm), state);
+}
+
 function resizeEntity(state: EditorState, id: string, widthMm?: number, heightMm?: number): EditorState {
+  if (isEntityLocked(state.currentPlan, id)) {
+    return state;
+  }
   const group = state.currentPlan.tableGroups.find((tableGroup) => tableGroup.id === id);
   if (group) {
     return resizeTableGroup(state, group.tableIds, widthMm, heightMm);
@@ -434,6 +521,114 @@ function resizeObject(object: DrawingObject, widthMm?: number, heightMm?: number
   };
 }
 
+function moveRectValue(rect: Rect, dxMm: number, dyMm: number): Rect {
+  return {
+    ...rect,
+    x: rect.x + dxMm,
+    y: rect.y + dyMm
+  };
+}
+
+function setEntityLock(state: EditorState, ids: string[], locked: boolean): EditorState {
+  const idSet = new Set(ids.filter((id) => id !== state.currentPlan.room.id));
+  return {
+    ...state,
+    currentPlan: {
+      ...state.currentPlan,
+      objects: state.currentPlan.objects.map((object) => (idSet.has(object.id) ? { ...object, locked } : object)),
+      tables: state.currentPlan.tables.map((table) => (idSet.has(table.id) ? { ...table, locked } : table)),
+      tableGroups: state.currentPlan.tableGroups.map((group) => (idSet.has(group.id) ? { ...group, locked } : group)),
+      updatedAtIso: new Date().toISOString()
+    }
+  };
+}
+
+function setEntityVisibility(state: EditorState, ids: string[], visible: boolean): EditorState {
+  const idSet = new Set(ids.filter((id) => id !== state.currentPlan.room.id));
+  const groupIds = new Set(state.currentPlan.tableGroups.filter((group) => idSet.has(group.id)).flatMap((group) => group.tableIds));
+  return {
+    ...state,
+    currentPlan: {
+      ...state.currentPlan,
+      objects: state.currentPlan.objects.map((object) => (idSet.has(object.id) ? { ...object, visible } : object)),
+      tables: state.currentPlan.tables.map((table) => (idSet.has(table.id) || groupIds.has(table.id) ? { ...table, visible } : table)),
+      tableGroups: state.currentPlan.tableGroups.map((group) => (idSet.has(group.id) ? { ...group, visible } : group)),
+      updatedAtIso: new Date().toISOString()
+    }
+  };
+}
+
+function duplicateSelection(state: EditorState): EditorState {
+  const selected = state.selectedObjectIds;
+  if (selected.length === 0) {
+    return state;
+  }
+  const selectedSet = new Set(selected);
+  const idMap = new Map<string, string>();
+  const duplicateId = (id: string) => {
+    const existing = idMap.get(id);
+    if (existing) {
+      return existing;
+    }
+    const next = `${id}-copy-${Date.now()}-${idMap.size + 1}`;
+    idMap.set(id, next);
+    return next;
+  };
+  const duplicatedObjects = state.currentPlan.objects
+    .filter((object) => selectedSet.has(object.id) && object.role !== "room")
+    .map((object) => ({
+      ...object,
+      id: duplicateId(object.id),
+      name: `${object.name} Kopie`,
+      locked: false,
+      visible: true,
+      geometry: object.geometry.kind === "rect" ? { ...object.geometry, rect: moveRectValue(object.geometry.rect, 500, 500) } : object.geometry
+    }));
+
+  const selectedGroups = state.currentPlan.tableGroups.filter((group) => selectedSet.has(group.id));
+  const selectedGroupTableIds = new Set(selectedGroups.flatMap((group) => group.tableIds));
+  const duplicatedTables = state.currentPlan.tables
+    .filter((table) => selectedSet.has(table.id) || selectedGroupTableIds.has(table.id))
+    .map((table) => {
+      const { groupId: _groupId, ...movedTable } = moveTable(table, 500, 500);
+      const nextGroupId = table.groupId && selectedSet.has(table.groupId) ? duplicateId(table.groupId) : undefined;
+      return {
+        ...movedTable,
+        id: duplicateId(table.id),
+        name: `${table.name} Kopie`,
+        locked: false,
+        visible: true,
+        ...(nextGroupId ? { groupId: nextGroupId } : {})
+      };
+    });
+  const duplicatedTableIds = new Set(duplicatedTables.map((table) => table.id));
+  const originalTableIds = new Set(state.currentPlan.tables.filter((table) => selectedSet.has(table.id) || selectedGroupTableIds.has(table.id)).map((table) => table.id));
+  const duplicatedSeats = state.currentPlan.tableSeats
+    .filter((seat) => originalTableIds.has(seat.tableId))
+    .map((seat) => ({ ...moveTableSeat(seat, 500, 500), id: duplicateId(seat.id), tableId: duplicateId(seat.tableId) }))
+    .filter((seat) => duplicatedTableIds.has(seat.tableId));
+  const duplicatedGroups = selectedGroups.map((group) => ({
+    ...group,
+    id: duplicateId(group.id),
+    name: `${group.name} Kopie`,
+    tableIds: group.tableIds.map((tableId) => duplicateId(tableId)),
+    locked: false,
+    visible: true
+  }));
+  const selectedObjectIds = [...duplicatedObjects.map((object) => object.id), ...duplicatedGroups.map((group) => group.id), ...duplicatedTables.filter((table) => !table.groupId).map((table) => table.id)];
+  return withSelections({
+    ...state,
+    currentPlan: {
+      ...state.currentPlan,
+      objects: [...state.currentPlan.objects, ...duplicatedObjects],
+      tables: [...state.currentPlan.tables, ...duplicatedTables],
+      tableSeats: [...state.currentPlan.tableSeats, ...duplicatedSeats],
+      tableGroups: [...state.currentPlan.tableGroups, ...duplicatedGroups],
+      updatedAtIso: new Date().toISOString()
+    }
+  }, selectedObjectIds);
+}
+
 function moveTable(table: Table, dxMm: number, dyMm: number): Table {
   const x = (table.x ?? table.position.x) + dxMm;
   const y = (table.y ?? table.position.y) + dyMm;
@@ -505,6 +700,25 @@ function tableToRect(table: Table): Rect {
     width: table.type === "round" ? table.diameterMm ?? table.widthMm : table.widthMm,
     height: table.type === "round" ? table.diameterMm ?? table.depthMm : table.depthMm
   };
+}
+
+function isEntityLocked(plan: Plan, id: string): boolean {
+  if (plan.room.id === id) {
+    return true;
+  }
+  const object = plan.objects.find((item) => item.id === id);
+  if (object) {
+    return object.locked === true;
+  }
+  const table = plan.tables.find((item) => item.id === id);
+  if (table) {
+    return table.locked === true;
+  }
+  const group = plan.tableGroups.find((item) => item.id === id);
+  if (group) {
+    return group.locked === true;
+  }
+  return false;
 }
 
 export function updateObjectRect(object: DrawingObject, rect: Rect): DrawingObject {

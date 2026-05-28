@@ -55,22 +55,34 @@ type LayerKey = (typeof toggles)[number]["layer"];
 
 export function ToolSidebar({
   activeTool,
+  gridSizeMm,
   layers,
   onExportPdf,
   onGenerateLayouts,
   onGenerateTables,
   onRecalculate,
+  onSetGridSize,
+  onSetSnapToGrid,
+  onToggleObjectList,
   onToggleLayer,
-  onToolChange
+  onToolChange,
+  showObjectList,
+  snapToGrid
 }: {
   activeTool: ToolType;
+  gridSizeMm: number;
   layers: Record<"showChairs" | "showTables" | "showEscapeRoutes" | "showNoSeatZones" | "showGrid" | "showMeasurements" | "showValidation", boolean>;
   onExportPdf: () => void;
   onGenerateLayouts: () => void;
   onGenerateTables: () => void;
   onRecalculate: () => void;
+  onSetGridSize: (gridSizeMm: number) => void;
+  onSetSnapToGrid: (snapToGrid: boolean) => void;
+  onToggleObjectList: () => void;
   onToggleLayer: (layer: LayerKey) => void;
   onToolChange: (tool: ToolType) => void;
+  showObjectList: boolean;
+  snapToGrid: boolean;
 }) {
   return (
     <aside className="tool-sidebar" aria-label="Werkzeugleiste">
@@ -103,6 +115,38 @@ export function ToolSidebar({
             onChange={() => onToggleLayer(toggle.layer)}
           />
         ))}
+      </SidebarSection>
+
+      <SidebarSection title="Raster">
+        <label className="display-toggle">
+          <span className="display-toggle-label">
+            <Grid3X3 size={15} />
+            Einrasten
+          </span>
+          <input checked={snapToGrid} onChange={(event) => onSetSnapToGrid(event.currentTarget.checked)} type="checkbox" />
+          <span className="display-toggle-switch" />
+        </label>
+        <label className="grid-size-field">
+          <span>Rastergröße</span>
+          <select value={gridSizeMm} onChange={(event) => onSetGridSize(Number(event.currentTarget.value))}>
+            {[100, 250, 500, 1000].map((size) => (
+              <option key={size} value={size}>
+                {size} mm
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="sidebar-hint">Shift halten zum freien Verschieben.</p>
+      </SidebarSection>
+
+      <SidebarSection title="Objekte">
+        <button className={`view-mode-button ${showObjectList ? "is-active" : ""}`} onClick={onToggleObjectList} type="button">
+          <span>
+            <Layers size={16} />
+            Objektliste
+          </span>
+          <Eye size={15} />
+        </button>
       </SidebarSection>
 
       <SidebarSection title="Ansicht">

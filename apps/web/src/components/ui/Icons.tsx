@@ -67,6 +67,10 @@ export function Eye(props: IconProps) {
   return <BaseIcon {...props}><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></BaseIcon>;
 }
 
+export function EyeOff(props: IconProps) {
+  return <BaseIcon {...props}><path d="m3 3 18 18" /><path d="M10.6 10.6A2 2 0 0 0 13.4 13.4" /><path d="M9.9 4.2A10.6 10.6 0 0 1 12 4c6 0 10 8 10 8a16 16 0 0 1-3 4.2" /><path d="M6.1 6.1C3.6 7.9 2 12 2 12s4 8 10 8a10.8 10.8 0 0 0 5.9-1.8" /></BaseIcon>;
+}
+
 export function FileDown(props: IconProps) {
   return <BaseIcon {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /><path d="M12 12v6" /><path d="m9 15 3 3 3-3" /></BaseIcon>;
 }
@@ -81,6 +85,10 @@ export function Info(props: IconProps) {
 
 export function Layers(props: IconProps) {
   return <BaseIcon {...props}><path d="m12 2 9 5-9 5-9-5 9-5Z" /><path d="m3 12 9 5 9-5" /><path d="m3 17 9 5 9-5" /></BaseIcon>;
+}
+
+export function Lock(props: IconProps) {
+  return <BaseIcon {...props}><rect height="11" rx="2" width="16" x="4" y="11" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></BaseIcon>;
 }
 
 export function Maximize2(props: IconProps) {
@@ -153,6 +161,10 @@ export function Trash2(props: IconProps) {
 
 export function Undo2(props: IconProps) {
   return <BaseIcon {...props}><path d="M9 14 4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 0 10h-1" /></BaseIcon>;
+}
+
+export function Unlock(props: IconProps) {
+  return <BaseIcon {...props}><rect height="11" rx="2" width="16" x="4" y="11" /><path d="M8 11V7a4 4 0 0 1 7.5-2" /></BaseIcon>;
 }
 
 export function X(props: IconProps) {

@@ -1,6 +1,6 @@
 import { objectToRect, tableToRect } from "@seatflow/geometry";
 import type { DrawingObject, ObjectRole, Plan, Rect, Table, TableType } from "@seatflow/types";
-import { SquareStack, Trash2, X } from "../ui/Icons";
+import { Eye, EyeOff, Lock, SquareStack, Trash2, Unlock, X } from "../ui/Icons";
 import { Button, IconButton } from "../ui/Button";
 import { Panel } from "../ui/Panel";
 import { PropertyField } from "./PropertyField";
@@ -31,24 +31,36 @@ const tableAreaLayoutTypes = ["rounds", "rectangular", "banquet", "parliamentary
 
 export function PropertiesPanel({
   onDelete,
+  onDeleteMany,
+  onDuplicate,
   onGenerateAll,
   onGenerateForSelected,
+  onLock,
   onSelectNone,
+  onSetVisible,
+  onUnlock,
   onUpdateObject,
   onUpdateObjectRect,
   onUpdateTable,
   plan,
-  selectedObjectId
+  selectedObjectId,
+  selectedObjectIds
 }: {
   onDelete: (id: string) => void;
+  onDeleteMany: (ids: string[]) => void;
+  onDuplicate: () => void;
   onGenerateAll: () => void;
   onGenerateForSelected: (id: string) => void;
+  onLock: (ids: string[]) => void;
   onSelectNone: () => void;
+  onSetVisible: (ids: string[], visible: boolean) => void;
+  onUnlock: (ids: string[]) => void;
   onUpdateObject: (id: string, changes: Partial<DrawingObject>) => void;
   onUpdateObjectRect: (id: string, rect: Rect) => void;
   onUpdateTable: (id: string, changes: Partial<Table>) => void;
   plan: Plan;
   selectedObjectId?: string | undefined;
+  selectedObjectIds: string[];
 }) {
   const selectedObject = plan.room.id === selectedObjectId ? plan.room : plan.objects.find((object) => object.id === selectedObjectId);
   const selectedTable = plan.tables.find((table) => table.id === selectedObjectId);
@@ -61,12 +73,14 @@ export function PropertiesPanel({
         <IconButton aria-label="Eigenschaften schließen" icon={<X size={17} />} onClick={onSelectNone} />
       </div>
 
-      {selectedObject ? (
-        <ObjectProperties object={selectedObject} onDelete={onDelete} onGenerateAll={onGenerateAll} onGenerateForSelected={onGenerateForSelected} onUpdateObject={onUpdateObject} onUpdateRect={onUpdateObjectRect} />
+      {selectedObjectIds.length > 1 ? (
+        <MultiSelectionPanel onDeleteMany={onDeleteMany} onDuplicate={onDuplicate} onLock={onLock} onSetVisible={onSetVisible} onUnlock={onUnlock} plan={plan} selectedObjectIds={selectedObjectIds} />
+      ) : selectedObject ? (
+        <ObjectProperties object={selectedObject} onDelete={onDelete} onGenerateAll={onGenerateAll} onGenerateForSelected={onGenerateForSelected} onLock={onLock} onSetVisible={onSetVisible} onUnlock={onUnlock} onUpdateObject={onUpdateObject} onUpdateRect={onUpdateObjectRect} />
       ) : selectedTable ? (
-        <TableProperties onDelete={onDelete} onUpdateTable={onUpdateTable} table={selectedTable} />
+        <TableProperties onDelete={onDelete} onLock={onLock} onSetVisible={onSetVisible} onUnlock={onUnlock} onUpdateTable={onUpdateTable} table={selectedTable} />
       ) : selectedGroup ? (
-        <GroupProperties onDelete={onDelete} plan={plan} groupId={selectedGroup.id} />
+        <GroupProperties groupId={selectedGroup.id} onDelete={onDelete} onLock={onLock} onSetVisible={onSetVisible} onUnlock={onUnlock} plan={plan} />
       ) : (
         <p className="empty-panel-copy">Kein Objekt ausgewählt.</p>
       )}
@@ -79,6 +93,9 @@ function ObjectProperties({
   onDelete,
   onGenerateAll,
   onGenerateForSelected,
+  onLock,
+  onSetVisible,
+  onUnlock,
   onUpdateObject,
   onUpdateRect
 }: {
@@ -86,6 +103,9 @@ function ObjectProperties({
   onDelete: (id: string) => void;
   onGenerateAll: () => void;
   onGenerateForSelected: (id: string) => void;
+  onLock: (ids: string[]) => void;
+  onSetVisible: (ids: string[], visible: boolean) => void;
+  onUnlock: (ids: string[]) => void;
   onUpdateObject: (id: string, changes: Partial<DrawingObject>) => void;
   onUpdateRect: (id: string, rect: Rect) => void;
 }) {
@@ -142,6 +162,14 @@ function ObjectProperties({
       ) : null}
       <section className="additional-properties">
         <h3>Zusätzliche Eigenschaften</h3>
+        <ObjectStateActions
+          disabled={object.role === "room"}
+          locked={object.role === "room" || object.locked === true}
+          onLock={() => onLock([object.id])}
+          onSetVisible={(visible) => onSetVisible([object.id], visible)}
+          onUnlock={() => onUnlock([object.id])}
+          visible={object.visible !== false}
+        />
         <div className="color-property">
           <span>Hintergrundfarbe</span>
           <button aria-label="Hintergrundfarbe" className="color-swatch" type="button" />
@@ -149,7 +177,7 @@ function ObjectProperties({
         <PropertyField label="Notiz" value={object.note ?? ""} onChange={(value) => onUpdateObject(object.id, { note: value })} />
       </section>
       {object.role !== "room" ? (
-        <Button className="delete-object-button" icon={<Trash2 size={16} />} onClick={() => onDelete(object.id)} variant="danger">
+        <Button className="delete-object-button" disabled={object.locked === true} icon={<Trash2 size={16} />} onClick={() => onDelete(object.id)} variant="danger">
           Objekt löschen
         </Button>
       ) : null}
@@ -159,10 +187,16 @@ function ObjectProperties({
 
 function TableProperties({
   onDelete,
+  onLock,
+  onSetVisible,
+  onUnlock,
   onUpdateTable,
   table
 }: {
   onDelete: (id: string) => void;
+  onLock: (ids: string[]) => void;
+  onSetVisible: (ids: string[], visible: boolean) => void;
+  onUnlock: (ids: string[]) => void;
   onUpdateTable: (id: string, changes: Partial<Table>) => void;
   table: Table;
 }) {
@@ -183,17 +217,38 @@ function TableProperties({
       </div>
       <section className="additional-properties">
         <h3>Abstände</h3>
+        <ObjectStateActions
+          locked={table.locked === true}
+          onLock={() => onLock([table.id])}
+          onSetVisible={(visible) => onSetVisible([table.id], visible)}
+          onUnlock={() => onUnlock([table.id])}
+          visible={table.visible !== false}
+        />
         <PropertyField label="Abstand zu Tischen" value="1200 mm" />
         <PropertyField label="Abstand zu Fluchtwegen" value="600 mm" />
       </section>
-      <Button className="delete-object-button" icon={<Trash2 size={16} />} onClick={() => onDelete(table.id)} variant="danger">
+      <Button className="delete-object-button" disabled={table.locked === true} icon={<Trash2 size={16} />} onClick={() => onDelete(table.id)} variant="danger">
         Objekt löschen
       </Button>
     </>
   );
 }
 
-function GroupProperties({ groupId, onDelete, plan }: { groupId: string; onDelete: (id: string) => void; plan: Plan }) {
+function GroupProperties({
+  groupId,
+  onDelete,
+  onLock,
+  onSetVisible,
+  onUnlock,
+  plan
+}: {
+  groupId: string;
+  onDelete: (id: string) => void;
+  onLock: (ids: string[]) => void;
+  onSetVisible: (ids: string[], visible: boolean) => void;
+  onUnlock: (ids: string[]) => void;
+  plan: Plan;
+}) {
   const group = plan.tableGroups.find((item) => item.id === groupId);
   if (!group) {
     return null;
@@ -206,9 +261,101 @@ function GroupProperties({ groupId, onDelete, plan }: { groupId: string; onDelet
         <PropertyField label="Tische" value={String(group.tableIds.length)} />
         <PropertyField label="Layout" value={group.layoutType} />
       </div>
-      <Button className="delete-object-button" icon={<Trash2 size={16} />} onClick={() => onDelete(group.id)} variant="danger">
+      <section className="additional-properties">
+        <ObjectStateActions
+          locked={group.locked === true}
+          onLock={() => onLock([group.id])}
+          onSetVisible={(visible) => onSetVisible([group.id], visible)}
+          onUnlock={() => onUnlock([group.id])}
+          visible={group.visible !== false}
+        />
+      </section>
+      <Button className="delete-object-button" disabled={group.locked === true} icon={<Trash2 size={16} />} onClick={() => onDelete(group.id)} variant="danger">
         Objekt löschen
       </Button>
+    </>
+  );
+}
+
+function ObjectStateActions({
+  disabled = false,
+  locked,
+  onLock,
+  onSetVisible,
+  onUnlock,
+  visible
+}: {
+  disabled?: boolean;
+  locked: boolean;
+  onLock: () => void;
+  onSetVisible: (visible: boolean) => void;
+  onUnlock: () => void;
+  visible: boolean;
+}) {
+  return (
+    <div className="object-state-actions">
+      <Button disabled={disabled} icon={locked ? <Lock size={16} /> : <Unlock size={16} />} onClick={locked ? onUnlock : onLock} variant="secondary">
+        {locked ? "Objekt entsperren" : "Objekt sperren"}
+      </Button>
+      <Button disabled={disabled} icon={visible ? <EyeOff size={16} /> : <Eye size={16} />} onClick={() => onSetVisible(!visible)} variant="secondary">
+        {visible ? "Objekt ausblenden" : "Objekt anzeigen"}
+      </Button>
+    </div>
+  );
+}
+
+function MultiSelectionPanel({
+  onDeleteMany,
+  onDuplicate,
+  onLock,
+  onSetVisible,
+  onUnlock,
+  plan,
+  selectedObjectIds
+}: {
+  onDeleteMany: (ids: string[]) => void;
+  onDuplicate: () => void;
+  onLock: (ids: string[]) => void;
+  onSetVisible: (ids: string[], visible: boolean) => void;
+  onUnlock: (ids: string[]) => void;
+  plan: Plan;
+  selectedObjectIds: string[];
+}) {
+  const entities = selectedObjectIds.map((id) => resolveEntity(plan, id)).filter((entity): entity is { id: string; name: string; role: ObjectRole; locked: boolean } => Boolean(entity));
+  const unlockedIds = entities.filter((entity) => !entity.locked).map((entity) => entity.id);
+  const roleSummary = summarizeRoles(entities.map((entity) => entity.role));
+  return (
+    <>
+      <section className="selected-object-card multi-selected-card">
+        <span className="object-swatch">
+          <SquareStack size={20} />
+        </span>
+        <div>
+          <p>Mehrere Objekte ausgewählt</p>
+          <strong>{entities.length} Objekte</strong>
+          <span>{roleSummary}</span>
+        </div>
+      </section>
+      <div className="multi-selection-actions">
+        <Button icon={<SquareStack size={16} />} onClick={onDuplicate} variant="secondary">
+          Auswahl duplizieren
+        </Button>
+        <Button icon={<Lock size={16} />} onClick={() => onLock(selectedObjectIds)} variant="secondary">
+          Auswahl sperren
+        </Button>
+        <Button icon={<Unlock size={16} />} onClick={() => onUnlock(selectedObjectIds)} variant="secondary">
+          Auswahl entsperren
+        </Button>
+        <Button icon={<EyeOff size={16} />} onClick={() => onSetVisible(selectedObjectIds, false)} variant="secondary">
+          Auswahl ausblenden
+        </Button>
+        <Button icon={<Eye size={16} />} onClick={() => onSetVisible(selectedObjectIds, true)} variant="secondary">
+          Auswahl anzeigen
+        </Button>
+        <Button disabled={unlockedIds.length === 0} icon={<Trash2 size={16} />} onClick={() => onDeleteMany(unlockedIds)} variant="danger">
+          Auswahl löschen
+        </Button>
+      </div>
     </>
   );
 }
@@ -298,6 +445,36 @@ function AreaGeneratorProperties({
   );
 }
 
+function resolveEntity(plan: Plan, id: string): { id: string; name: string; role: ObjectRole; locked: boolean } | null {
+  if (plan.room.id === id) {
+    return { id, name: plan.room.name, role: "room", locked: true };
+  }
+  const object = plan.objects.find((item) => item.id === id);
+  if (object) {
+    return { id, name: object.name, role: object.role, locked: object.locked === true };
+  }
+  const table = plan.tables.find((item) => item.id === id);
+  if (table) {
+    return { id, name: table.name, role: "table", locked: table.locked === true };
+  }
+  const group = plan.tableGroups.find((item) => item.id === id);
+  if (group) {
+    return { id, name: group.name, role: "table_group", locked: group.locked === true };
+  }
+  return null;
+}
+
+function summarizeRoles(roles: ObjectRole[]): string {
+  const counts = roles.reduce<Record<string, number>>((accumulator, role) => {
+    const label = labelForRole(role);
+    accumulator[label] = (accumulator[label] ?? 0) + 1;
+    return accumulator;
+  }, {});
+  return Object.entries(counts)
+    .map(([label, count]) => `${count} ${label}`)
+    .join(", ");
+}
+
 function getMinimumSize(role: ObjectRole): { width: number; height: number } {
   if (role === "stage" || role === "foh") return { width: 1000, height: 1000 };
   if (role === "escape_route" || role === "no_seat_zone" || role === "stairs" || role === "stage_access" || role === "technical_area" || role === "wheelchair_area") return { width: 500, height: 500 };
@@ -315,4 +492,28 @@ function parseRotation(value: string): number {
 function toNumber(value: string, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function labelForRole(role: ObjectRole): string {
+  const labels: Record<ObjectRole, string> = {
+    chair: "Stuhl",
+    escape_route: "Fluchtweg",
+    exit: "Ausgang",
+    foh: "FOH",
+    generated_aisle: "Interner Gang",
+    no_seat_zone: "Sperrfläche",
+    note: "Notiz",
+    room: "Raum",
+    seating_area: "Bestuhlungsbereich",
+    seating_block: "Stuhlblock",
+    stage: "Bühne",
+    stage_access: "Bühnenaufgang",
+    stairs: "Treppe",
+    table: "Tisch",
+    table_area: "Tischbereich",
+    table_group: "Tischgruppe",
+    technical_area: "Technik",
+    wheelchair_area: "Rollstuhlbereich"
+  };
+  return labels[role];
 }
